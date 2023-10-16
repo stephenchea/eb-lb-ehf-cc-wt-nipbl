@@ -1,0 +1,87 @@
+---
+title: "Generate UMAP and heatmap"
+output: html_notebook
+---
+
+```{bash}
+#scp -r schea2@hpc3.rcic.uci.edu:'/share/crsp/lab/alcalof/schea2/20220414-seurat/flox-integr-res-0.0120/flox-END-umap.Robj' /Volumes/all_ssd/20220414-seurat/flox-integr-res-0.0120
+
+#scp -r schea2@hpc3.rcic.uci.edu:'/share/crsp/lab/alcalof/schea2/20220414-seurat/flox-integr-res-0.0120/flox-ECT-umap.Robj' /Volumes/all_ssd/20220414-seurat/flox-integr-res-0.0120
+
+#scp -r schea2@hpc3.rcic.uci.edu:'/share/crsp/lab/alcalof/schea2/20220414-seurat/flox-integr-res-0.0120/flox-MES-umap.Robj' /Volumes/all_ssd/20220414-seurat/flox-integr-res-0.0120
+
+#scp -r schea2@hpc3.rcic.uci.edu:'/share/crsp/lab/alcalof/schea2/20220414-seurat/flox-integr-res-0.0120/flox-END-3' /Volumes/all_ssd/20220414-seurat/flox-integr-res-0.0120
+
+scp -r schea2@hpc3.rcic.uci.edu:'/share/crsp/lab/alcalof/schea2/20220414-seurat/flox-integr-res-0.0120/flox-ECT-7' /Volumes/all_ssd/20220414-seurat/flox-integr-res-0.0120
+
+scp -r schea2@hpc3.rcic.uci.edu:'/share/crsp/lab/alcalof/schea2/20220414-seurat/flox-integr-res-0.0120/flox-MES-17' /Volumes/all_ssd/20220414-seurat/flox-integr-res-0.0120
+```
+
+```{r}
+library(Seurat)
+library(tidyverse)
+library(pracma)
+library(RColorBrewer)
+library(scales)
+library(patchwork)
+```
+
+```{r}
+for (i in c("ECT")) {
+
+    print(i)
+  
+    print("loading umap")
+    filename.robj <- paste0("/Volumes/all_ssd/20220414-seurat/flox-integr-res-0.0120/flox-", i, "-umap.Robj")
+    load(file = filename.robj)
+
+    flox.germ$cluster.germ <- flox.germ$cluster.whole
+    flox.germ$cluster.germ <- factor(flox.germ$cluster.germ)
+    
+    Idents(flox.germ) <- flox.germ$cluster.germ
+    
+    print("creating new directory")
+    name.direct <- paste0("flox-", i, "-", length(levels(flox.germ$cluster.germ)), "/")
+    
+    print("setting working directory")
+    path.direct <- paste0("/Volumes/all_ssd/20220414-seurat/flox-integr-res-0.0120/", name.direct)
+    
+    print("loading umap coordinates across cluster")
+    filename.robj <- paste0(path.direct, "umap-by-stage-embryo-cluster-flox-", i, "-", length(levels(flox.germ$cluster.germ)), ".Robj")
+    load(file = filename.robj)
+    
+    clust.label <- clust.umap %>% group_by(cluster) %>% summarize(umap.1 = median(umap.1), umap.2 = median(umap.2))
+    
+    cluster.umap <- ggplot() +
+    geom_point(data = sample(clust.umap), mapping = aes(x = umap.1, y = umap.2, color = cluster), shape = 20, stroke = 0, size = 0.5) +
+      geom_text(data = clust.label, mapping = aes(x = umap.1, y = umap.2, label = cluster), size = 2.3) +
+        labs(title = "Nipbl Flox/+", x = "UMAP 1", y = "UMAP 2", color = "Cluster") +
+        guides(color = guide_legend(override.aes = list(size = 2.3))) +
+        theme_classic(base_size = 7) +
+        theme(axis.line = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), plot.title = element_text(hjust = 0.5), legend.key.size = unit(7, "pt"))
+        
+    filename.robj <- paste0(path.direct, "umap-by-cluster-flox-", i, "-", length(levels(flox.germ$cluster.germ)), ".png")
+    ggsave(plot = cluster.umap, filename = filename.robj, device = "png", width = 3.5, height = 2.25)
+    
+    print("generating assay names")
+    name.assay <- paste0("SCT_", i)
+
+    filename.robj <- paste0(path.direct, "diff-genes-flox-", i, "-", length(levels(flox.germ$cluster.germ)), ".Robj")
+    load(file = filename.robj)
+
+    top.genes <- diff.genes %>% group_by(cluster) %>% slice_head(n = 79/length(levels(flox.germ$cluster.germ)))
+
+    heatmap <- DoHeatmap(flox.germ, assay = name.assay, slot = "scale.data", features = as.vector(top.genes$gene), group.by = "ident", group.bar = TRUE, label = TRUE, size = 2.3, angle = 0, hjust = 0.5, draw.lines = TRUE) +
+    scale_fill_gradientn(colors = rev(brewer.pal(n=5, name = "RdBu")), na.value = "white") +
+    scale_x_discrete(position = "top") +
+    labs(title = paste0(i, ", Nipbl Flox/+"), fill = "Standardized\nLog1p UMI") +
+    guides(color = FALSE) +
+    theme(axis.title = element_text(size = 7), axis.text = element_text(size = 7), plot.title = element_text(hjust = 0.5, size = 7), legend.title = element_text(size = 7), legend.text = element_text(size = 7), legend.key.size = unit(7, "pt"))
+
+    filename.png <- paste0(path.direct, "heatmap-diff-genes-flox-", i, "-", length(levels(flox.germ$cluster.germ)), ".png")
+    ggsave(plot = heatmap, filename = filename.png, device = "png", units = "in", width = 6.5, height = 9)
+
+}
+
+```
+

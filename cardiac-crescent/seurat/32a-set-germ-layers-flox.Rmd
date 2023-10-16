@@ -1,0 +1,102 @@
+---
+title: "Which clusters belong to which germ layers?"
+output: html_notebook
+---
+
+```{r}
+library(Seurat)
+library(tidyverse)
+library(RColorBrewer)
+```
+
+Load umap whole.
+```{r}
+load("/Volumes/all_ssd/20220414-seurat/flox-integr-res-0.0120/umap-by-cluster-flox-integr-res-0.0120-26.Robj")
+head(umap.whole)
+table(umap.whole$cluster.whole)
+```
+
+Set germ layers.
+```{r}
+umap.whole$germ.whole <- recode(umap.whole$cluster.whole, 
+                                "1.1.1" = "MES", 
+                                "1.1.2" = "MES", 
+                                "1.1.3" = "MES", 
+                                "1.1.4" = "MES", 
+                                "1.2.1" = "MES", 
+                                "1.2.2" = "MES", 
+                                "1.2.3" = "MES", 
+                                "1.2.4" = "ECT", 
+                                "1.3.1" = "MES", 
+                                "1.3.2" = "MES", 
+                                "1.4" = "MES", 
+                                "1.5" = "MES", 
+                                "2.1.1" = "ECT", 
+                                "2.1.2" = "ECT", 
+                                "2.1.3" = "ECT", 
+                                "2.1.4" = "ECT", 
+                                "2.1.5" = "ECT", 
+                                "2.2.1" = "MES", 
+                                "2.2.2" = "MES", 
+                                "2.2.3" = "MES", 
+                                "2.3" = "ECT", 
+                                "3.1.1" = "END", 
+                                "3.1.2" = "MES", 
+                                "3.1.3" = "END", 
+                                "3.2" = "END", 
+                                "4" = "MES")
+
+umap.whole$germ.whole <- factor(umap.whole$germ.whole, levels = c("ECT", "MES", "END"))
+```
+
+```{r}
+save(umap.whole, file = "/Volumes/all_ssd/20220414-seurat/flox-integr-res-0.0120/umap-by-germ-layer-flox-integr-res-0.0120-26.Robj")
+```
+
+Generate label umap.
+```{r}
+whole.label <- umap.whole %>% group_by(germ.whole) %>% summarize(umap.1 = median(umap.1), umap.2 = median(umap.2))
+```
+
+Generate cluster umap.
+```{r}
+cluster.umap <- ggplot() +
+geom_point(data = sample(umap.whole), mapping = aes(x = umap.1, y = umap.2, color = germ.whole), shape = 20, stroke = 0, size = 0.5) +
+geom_text(data = whole.label, mapping = aes(x = umap.1, y = umap.2, label = germ.whole), size = 2.3) +
+labs(title = "Whole, Nipbl Flox/+", x = "UMAP 1", y = "UMAP 2", color = "Germ\nLayer") +
+guides(color = guide_legend(override.aes = list(size = 2.3))) +
+theme_classic(base_size = 7) +
+theme(axis.line = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), plot.title = element_text(hjust = 0.5, size = 7), legend.key.size = unit(7, "pt"))
+
+cluster.umap
+```
+
+```{r}
+ggsave(plot = cluster.umap, filename = "/Volumes/all_ssd/20220414-seurat/flox-integr-res-0.0120/umap-by-germ-layer-flox-integr-res-0.0120-26.png", device = "png", width = 3.5, height = 2.25, units = "in")
+```
+
+Generate cluster umap.
+```{r}
+cluster.umap <- ggplot() +
+geom_point(data = sample(umap.whole), mapping = aes(x = umap.1, y = umap.2, color = germ.whole), shape = 20, stroke = 0, size = 0.5) +
+geom_text(data = whole.label, mapping = aes(x = umap.1, y = umap.2, label = germ.whole), size = 2.3) +
+facet_wrap(~germ.whole, ncol = 3) +
+labs(title = "Whole, Nipbl Flox/+", x = "UMAP 1", y = "UMAP 2", color = "Germ\nLayer") +
+guides(color = guide_legend(override.aes = list(size = 2.3))) +
+theme_classic(base_size = 7) +
+theme(axis.line = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), plot.title = element_text(hjust = 0.5, size = 7), legend.key.size = unit(7, "pt"), strip.background = element_blank())
+
+cluster.umap
+```
+
+```{r}
+ggsave(plot = cluster.umap, filename = "/Volumes/all_ssd/20220414-seurat/flox-integr-res-0.0120/umap-facet-germ-flox-integr-res-0.0120-26.png", device = "png", width = 6.5, height = 2.25, units = "in")
+```
+
+Upload files onto hpc3.
+```{bash}
+scp /Volumes/all_ssd/20220414-seurat/flox-integr-res-0.0120/umap-by-germ-layer-flox-integr-res-0.0120-26.png schea2@hpc3.rcic.uci.edu:/share/crsp/lab/alcalof/schea2/20220414-seurat/flox-integr-res-0.0120
+
+scp /Volumes/all_ssd/20220414-seurat/flox-integr-res-0.0120/umap-by-germ-layer-flox-integr-res-0.0120-26.Robj schea2@hpc3.rcic.uci.edu:/share/crsp/lab/alcalof/schea2/20220414-seurat/flox-integr-res-0.0120
+
+```

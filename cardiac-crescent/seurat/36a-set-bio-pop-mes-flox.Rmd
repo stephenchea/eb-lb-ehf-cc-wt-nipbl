@@ -1,0 +1,72 @@
+---
+title: "Which clusters belong to which germ layers?"
+output: html_notebook
+---
+
+```{r}
+library(Seurat)
+library(tidyverse)
+library(RColorBrewer)
+```
+
+Load umap whole.
+```{r}
+load("/Volumes/all_ssd/20220414-seurat/flox-integr-res-0.0120/flox-MES-16/umap-by-stage-embryo-cluster-flox-MES-16.Robj")
+germ.umap <- clust.umap
+head(germ.umap)
+levels(germ.umap$cluster)
+```
+
+Set germ layers.
+```{r}
+germ.umap$anno <- recode(germ.umap$cluster, "1.1.1" = "TPM", 
+                         "1.1.2" = "MMP1", 
+                         "1.1.3" = "MMP2", 
+                         "1.1.4" = "PGC", 
+                         "1.2.1" = "HPM", 
+                         "1.2.2" = "SHF", 
+                         "1.2.3" = "PSM", 
+                         "1.3.1" = "FHF2", 
+                         "1.3.2" = "FHF1", 
+                         "1.4" = "HGB",   
+                         "1.5" = "CDM",   
+                         "2.2.1" = "NMP", 
+                         "2.2.2" = "PMP", 
+                         "2.2.3" = "LPMP", 
+                         "3.1.2" = "PN", 
+                         "4" = "PE")
+
+germ.umap$anno <- factor(germ.umap$anno, levels = c("TPM", "MMP1", "MMP2", "PGC", "HPM", "SHF", "PSM", "FHF2", "FHF1", "HGB", "CDM", "NMP", "PMP", "LPMP", "PN", "PE"))
+```
+
+```{r}
+save(germ.umap, file = "/Volumes/all_ssd/20220414-seurat/flox-integr-res-0.0120/umap-by-stage-embryo-cluster-flox-MES-16.Robj")
+```
+
+Generate label umap.
+```{r}
+label.umap <- germ.umap %>% group_by(anno) %>% summarize(umap.1 = median(umap.1), umap.2 = median(umap.2))
+```
+
+Generate cluster umap.
+```{r}
+cluster.umap <- ggplot() +
+geom_point(data = germ.umap, mapping = aes(x = umap.1, y = umap.2, color = anno), shape = 20, stroke = 0, size = 1) +
+geom_text(data = label.umap, mapping = aes(x = umap.1, y = umap.2, label = anno), size = 5.33) +
+labs(title = "Mesoderm, Nipbl Flox/+", x = "UMAP 1", y = "UMAP 2", color = "Cell Pop") +
+guides(color = guide_legend(override.aes = list(size = 4))) +
+theme_classic(base_size = 16) +
+theme(axis.line = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), plot.title = element_text(hjust = 0.5), legend.key.size = unit(16, "pt"))
+
+cluster.umap
+
+ggsave(plot = cluster.umap, filename = "/Volumes/all_ssd/20220414-seurat/flox-integr-res-0.0120/flox-MES-16/umap-by-anno-flox-MES-clust-16.png", device = "png", width = 5.67, height = 4.76, units = "in")
+```
+
+Upload files onto hpc3.
+```{bash}
+#scp /Volumes/Bud_SSD/20210505-seurat/flox-integr-clust-5/flox-MES-clust-9/umap-by-bio-pop-flox-MES-clust-9.png schea2@hpc3.rcic.uci.edu:/dfs6/pub/schea2/20210505-seurat/flox-integr-clust-5/flox-MES-clust-9
+
+#scp /Volumes/Bud_SSD/20210505-seurat/flox-integr-clust-5/flox-MES-clust-9/umap-by-bio-pop-flox-MES-clust-9.Robj schea2@hpc3.rcic.uci.edu:/dfs6/pub/schea2/20210505-seurat/flox-integr-clust-5/flox-MES-clust-9
+
+```
