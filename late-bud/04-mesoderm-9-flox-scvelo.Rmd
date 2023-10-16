@@ -1,0 +1,31 @@
+---
+title: "Extract cell id, umap coordinates, and cluster annotation from mesoderm of Flox embryos"
+output: 
+---
+
+Load libraries.
+```{r}
+library(Seurat)
+library(tidyverse)
+```
+
+Load umap coordinates of mesoderm of Flox embryos.
+```{r}
+load("/Volumes/Bud_SSD/20210505-seurat/flox-integr-clust-5/flox-MES-clust-9/umap-by-bio-pop-flox-MES-clust-9.Robj")
+head(germ.umap)
+```
+
+Extract cell ids.
+```{r}
+write.csv(rownames(germ.umap), file = "cell-id-mesoderm-flox.csv", row.names = rownames(germ.umap))
+```
+
+Extract umap coordinates.
+```{r}
+write.csv(germ.umap[,1:2], file = "umap-coord-mesoderm-flox.csv", row.names = TRUE)
+```
+
+Extract cluster annotation.
+```{r}
+write.csv(germ.umap$biopop.whole, file = "cluster-annotation-mesoderm-flox.csv", row.names = rownames(germ.umap))
+```
