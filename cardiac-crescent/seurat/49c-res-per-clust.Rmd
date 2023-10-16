@@ -1,0 +1,106 @@
+---
+title: "Confirm cluster iterations were performed at a low enough resolution"
+output: html_notebook
+---
+
+Load libraries.
+```{r}
+library(tidyverse)
+theme_set(theme_classic(base_size = 7))
+library(igraph)
+library(ggraph)
+```
+
+At each resolution, calculate shannon entropy per cluster.
+```{r}
+
+for(n in c("1.3", "1.2", "1.1")) {
+
+#set maximum resolution
+max.res <- 1
+
+#generate empty list to store cluster identities for each cell
+cluster.cell.list <- list()
+
+#open cluster-per-cell files and store them in list above
+for (i in seq(from = 0, to = max.res, by = 0.001)) {
+  file.name <- paste0("/Volumes/all_ssd/20220414-seurat/fin-integr-res-0.0151/fin-1-res-0.037/fin-", n, "-cluster-iters/cluster-per-cell-fin-", n, "-res-", sprintf(fmt = "%.3f", i), ".Robj")
+  load(file.name)
+  cluster.cell.list[[sprintf(fmt = "%.3f", i)]] <- as.numeric(cluster.subclust)
+}
+
+#generate matrix of cluster ids per resolution across columns
+cluster.cell.matrix <- bind_cols(cluster.cell.list)
+
+#generate tidy data of node ids and attributes
+tidy.node <- as.data.frame(unlist(apply(cluster.cell.matrix, 2, table)))
+colnames(tidy.node) <- "node.size"
+tidy.node$node <- row.names(tidy.node)
+tidy.node <- separate(tidy.node, col = node, sep = "\\.(?!.*\\.)" , into = c("resolution", "cluster"), remove = FALSE)
+
+#generate vector of resolutions
+res <- sprintf(fmt = "%.3f", seq(from = 0, to = max.res, by = 0.001))
+
+#finish generating tidy data of nodes and attributes
+tidy.node$resolution <- factor(tidy.node$resolution, levels = res)
+tidy.node$cluster <- factor(tidy.node$cluster, levels = 1:max(tidy.node$cluster))
+
+#set shannon value of resolution 1 must be zero by definition
+shannon.per.cluster <- vector()
+shannon.per.cluster <- c(0)
+names(shannon.per.cluster) <- "1"
+shannon.per.cluster.per.res <- list()
+shannon.per.cluster.per.res[[res[1]]] <- shannon.per.cluster
+
+#calculate diversity score for each resolution
+for (i in 1:(length(res)-1)) {
+  res.subset.cluster.cell.matrix <- as.data.frame(cluster.cell.matrix[, c(i, i+1)])
+  colnames(res.subset.cluster.cell.matrix) <- c("res.low", "res.high")
+  table.res.subset.cluster.cell.matrix <- table(res.subset.cluster.cell.matrix[, "res.high"])
+  
+  shannon.per.cluster <- vector()
+  
+  for (t in names(table.res.subset.cluster.cell.matrix)) {
+    clust.subset.cluster.cell.matrix <- filter(res.subset.cluster.cell.matrix,  res.high == t)
+    clust.subset.cluster.cell.matrix$res.low <- factor(clust.subset.cluster.cell.matrix$res.low)
+    table.clust.subset.cluster.cell.matrix <- table(clust.subset.cluster.cell.matrix$res.low)
+    shannon.per.cluster[t] <- sum(-(table.clust.subset.cluster.cell.matrix/table.res.subset.cluster.cell.matrix[t])*log(table.clust.subset.cluster.cell.matrix/table.res.subset.cluster.cell.matrix[t]))
+  }
+  
+  shannon.per.cluster.per.res[[res[i+1]]] <- shannon.per.cluster
+}
+
+#add shannon value to tidy data of each node
+tidy.node$shannon <- unlist(shannon.per.cluster.per.res)
+tidy.node <- tidy.node[, c("node", "resolution", "cluster", "node.size", "shannon")]
+row.names(tidy.node) <- NULL
+
+#calculate total shannon entropy per resolution
+total.shannon <- tidy.node %>% group_by(resolution) %>% summarise(shannon = sum(shannon))
+
+#add number of clusters per resolution
+total.shannon$clusters <- tidy.node %>% group_by(resolution) %>% summarise(clusters = length(cluster)) %>% pull(clusters)
+
+#grab only those resolutions with a total shannon entropy of zero
+zero.shannon <- total.shannon %>% filter(shannon == 0)
+
+print(n)
+#For each number of clusters, how many resolutions had a total shannon entropy of zero?
+print(table(zero.shannon$clusters))
+
+#Rank number of clusters by number of resolutions from high to low.
+print(sort(table(zero.shannon$clusters), decreasing = TRUE))
+
+#find best resolution per cluster
+best.res.per.clust <- vector()
+
+for (i in names(table(zero.shannon$clusters))) {
+  res.per.clust <- as.numeric(as.character(zero.shannon %>% filter(clusters == i) %>% pull(resolution)))
+  seg.per.clust <- c(0, which(as.integer(diff(x = res.per.clust / 0.001)) > 1), length(res.per.clust))
+  dis.per.seg <- diff(x = seg.per.clust)
+  best.res.per.clust <- res.per.clust[seg.per.clust[which.max(dis.per.seg) + 1]]
+  print(i)
+  print(best.res.per.clust)
+}
+}
+```

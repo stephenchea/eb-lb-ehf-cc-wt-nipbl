@@ -1,0 +1,90 @@
+library(Seurat)
+library(tidyverse)
+library(RColorBrewer)
+library(patchwork)
+
+ident.clust <- c("1.3", "1.2", "1.1")
+optim.clust <- list("1.3" = c("0.071", "0.108", "0.185", "0.205", "0.244"),
+                    "1.2" = c("0.058", "0.090", "0.137", "0.236", "0.286", "0.410", "0.589", "0.690"),
+                    "1.1" = c("0.038", "0.073", "0.103", "0.133", "0.142", "0.161", "0.309", "0.630"))
+
+for (i in 1:length(ident.clust)) {
+    
+    for (t in 1:length(optim.clust[[i]])) {
+    
+    setwd("/share/crsp/lab/alcalof/schea2/20220414-seurat/fin-integr-res-0.0151/fin-1-res-0.037")
+    
+    n <- str_replace_all(ident.clust[i], "[.]", "_")
+    
+filename.robj <- paste0("fin-", ident.clust[i], "-cluster-iters/cluster-per-cell-fin-", ident.clust[i], "-res-", optim.clust[[i]][t], ".Robj")
+load(filename.robj)
+
+filename.robj <- paste0("fin-", ident.clust[i], "-neighbors.Robj")
+load(filename.robj)
+
+renamed.ident <- paste0(ident.clust[i], ".", cluster.subclust)
+renamed.ident <- as.character(renamed.ident)
+renamed.ident <- factor(renamed.ident)
+
+fin.subclust@active.ident <- renamed.ident
+Idents(fin.subclust) <- renamed.ident
+fin.subclust$cluster.subclust <- fin.subclust@active.ident
+
+name.direct <- paste0("fin-", ident.clust[i], "-res-", optim.clust[[i]][t])
+dir.create(name.direct)
+
+path.direct <- paste0("/share/crsp/lab/alcalof/schea2/20220414-seurat/fin-integr-res-0.0151/fin-1-res-0.037/", name.direct)
+setwd(path.direct)
+
+cluster.subclust <- fin.subclust$cluster.subclust
+
+filename.robj <- paste0("cluster-per-cell-fin-", ident.clust[i], "-res-", optim.clust[[i]][t], ".Robj")
+save(cluster.subclust, file = filename.robj)
+
+subclust.umap <- data.frame(fin.subclust@reductions$umap@cell.embeddings, fin.subclust$stage, fin.subclust$label.embryo, fin.subclust$cluster.subclust)
+colnames(subclust.umap) <- c("umap.1", "umap.2", "stage", "embryo", "cluster.subclust")
+
+filename.robj <- paste0("umap-by-cluster-fin-", ident.clust[i], "-res-", optim.clust[[i]][t], ".Robj")
+save(subclust.umap, file = filename.robj)
+
+filename.csv <- paste0("umap-by-cluster-fin-", ident.clust[i], "-res-", optim.clust[[i]][t], ".csv")
+
+clust.label <- subclust.umap %>% group_by(cluster.subclust) %>% summarize(umap.1 = median(umap.1), umap.2 = median(umap.2))
+
+cluster.umap <- ggplot() +
+geom_point(data = sample(subclust.umap), mapping = aes(x = umap.1, y = umap.2, color = cluster.subclust), shape = 20, stroke = 0, size = 0.5) +
+geom_text(data = clust.label, mapping = aes(x = umap.1, y = umap.2, label = cluster.subclust), size = 2.3) +
+labs(title = paste0(ident.clust[i], ", Nipbl FIN/+"), x = "UMAP 1", y = "UMAP 2", color = "Cluster") +
+guides(color = guide_legend(override.aes = list(size = 2.3))) +
+theme_classic(base_size = 7) +
+theme(axis.line = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), plot.title = element_text(hjust = 0.5, size = 7), legend.key.size = unit(7, "pt"))
+
+filename.png <- paste0("umap-by-cluster-fin-", ident.clust[i], "-res-", optim.clust[[i]][t], ".png")
+#ggsave(plot = cluster.umap, filename = filename.png, device = "png", width = 3.5, height = 2.25, units = "in")
+
+name.assay <- paste0("SCT_", n)
+
+fin.subclust <- PrepSCTFindMarkers(fin.subclust, assay = name.assay, verbose = TRUE)
+
+diff.genes <- FindAllMarkers(fin.subclust, assay = name.assay, logfc.threshold = 0, test.use = "wilcox", slot = "data", min.pct = 0, verbose = TRUE, only.pos = TRUE, max.cells.per.ident = dim(fin.subclust)[2]/length(levels(fin.subclust$cluster.cluster)), return.thresh = 0.05)
+
+filename.robj <- paste0("diff-genes-fin-", ident.clust[i], "-res-", optim.clust[[i]][t], ".Robj")
+save(diff.genes, file = filename.robj)
+
+filename.csv <- paste0("diff-genes-fin-", ident.clust[i], "-res-", optim.clust[[i]][t], ".csv")
+write.csv(x = diff.genes, file = filename.csv)
+
+top.genes <- diff.genes %>% group_by(cluster) %>% slice_head(n = 79/length(levels(fin.subclust$cluster.subclust)))
+
+heatmap <- DoHeatmap(fin.subclust, assay = name.assay, slot = "scale.data", features = as.vector(top.genes$gene), group.by = "ident", group.bar = TRUE, label = TRUE, size = 2.3, angle = 0, hjust = 0.5, draw.lines = TRUE) +
+scale_fill_gradientn(colors = rev(brewer.pal(n=5, name = "RdBu")), na.value = "white") +
+scale_x_discrete(position = "top") +
+labs(title = paste0(ident.clust[i], ", Nipbl FIN/+"), fill = "Standardized\nLog1p UMI") +
+guides(color = FALSE) +
+theme(axis.title = element_text(size = 7), axis.text = element_text(size = 7), plot.title = element_text(hjust = 0.5, size = 7), legend.title = element_text(size = 7), legend.text = element_text(size = 7), legend.key.size = unit(7, "pt"))
+
+filename.png <- paste0("heatmap-diff-genes-fin-", ident.clust[i], "-res-", optim.clust[[i]][t], ".png")
+#ggsave(plot = heatmap, filename = filename.png, device = "png", units = "in", width = 6.5, height = 9)
+
+    }
+}
