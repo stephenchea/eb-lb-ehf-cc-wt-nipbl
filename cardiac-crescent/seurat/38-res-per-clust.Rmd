@@ -1,0 +1,149 @@
+---
+title: "Confirm cluster iterations were performed at a low enough resolution"
+output: html_notebook
+---
+
+```{bash}
+scp -r schea2@hpc3.rcic.uci.edu:'/share/crsp/lab/alcalof/schea2/20220414-seurat/fin-integr-cluster-iters' /Volumes/all_ssd/20220414-seurat
+```
+
+Load libraries.
+```{r}
+library(tidyverse)
+theme_set(theme_classic(base_size = 7))
+library(igraph)
+library(ggraph)
+```
+
+At each resolution, calculate shannon entropy per cluster.
+```{r}
+max.res <- 0.2
+
+#generate empty list to store cluster identities for each cell
+cluster.cell.list <- list()
+
+#open cluster-per-cell files and store them in list above
+for (i in seq(from = 0, to = max.res, by = 0.0001)) {
+  file.name <- paste0("/Volumes/all_ssd/20220414-seurat/fin-integr-cluster-iters/cluster-per-cell-fin-integr-res-", sprintf(fmt = "%.4f", i), ".Robj")
+  load(file.name)
+  cluster.cell.list[[sprintf(fmt = "%.4f", i)]] <- as.numeric(fin.integr.active.ident)
+}
+
+#generate matrix of cluster ids per resolution across columns
+cluster.cell.matrix <- bind_cols(cluster.cell.list)
+
+#generate tidy data of node ids and attributes
+tidy.node <- as.data.frame(unlist(apply(cluster.cell.matrix, 2, table)))
+colnames(tidy.node) <- "node.size"
+tidy.node$node <- row.names(tidy.node)
+tidy.node <- separate(tidy.node, col = node, sep = "\\.(?!.*\\.)" , into = c("resolution", "cluster"), remove = FALSE)
+
+res <- sprintf(fmt = "%.4f", seq(from = 0, to = max.res, by = 0.0001))
+
+tidy.node$resolution <- factor(tidy.node$resolution, levels = res)
+tidy.node$cluster <- factor(tidy.node$cluster, levels = 1:max(tidy.node$cluster))
+
+#shannon value of resolution 1 must be zero by definition
+shannon.per.cluster <- vector()
+shannon.per.cluster <- c(0)
+names(shannon.per.cluster) <- "1"
+shannon.per.cluster.per.res <- list()
+shannon.per.cluster.per.res[[res[1]]] <- shannon.per.cluster
+
+#calculate diversity score for each resolutoin beginning at 3
+for (i in 1:(length(res)-1)) {
+  res.subset.cluster.cell.matrix <- as.data.frame(cluster.cell.matrix[, c(i, i+1)])
+  colnames(res.subset.cluster.cell.matrix) <- c("res.low", "res.high")
+  table.res.subset.cluster.cell.matrix <- table(res.subset.cluster.cell.matrix[, "res.high"])
+  
+  shannon.per.cluster <- vector()
+  
+  for (t in names(table.res.subset.cluster.cell.matrix)) {
+    clust.subset.cluster.cell.matrix <- filter(res.subset.cluster.cell.matrix,  res.high == t)
+    clust.subset.cluster.cell.matrix$res.low <- factor(clust.subset.cluster.cell.matrix$res.low)
+    table.clust.subset.cluster.cell.matrix <- table(clust.subset.cluster.cell.matrix$res.low)
+    shannon.per.cluster[t] <- sum(-(table.clust.subset.cluster.cell.matrix/table.res.subset.cluster.cell.matrix[t])*log(table.clust.subset.cluster.cell.matrix/table.res.subset.cluster.cell.matrix[t]))
+  }
+  
+  shannon.per.cluster.per.res[[res[i+1]]] <- shannon.per.cluster
+}
+tidy.node$shannon <- unlist(shannon.per.cluster.per.res)
+tidy.node <- tidy.node[, c("node", "resolution", "cluster", "node.size", "shannon")]
+row.names(tidy.node) <- NULL
+```
+
+Calculate total shannon entropy per resolution.
+```{r}
+total.shannon <- tidy.node %>% group_by(resolution) %>% summarise(shannon = sum(shannon))
+head(total.shannon)
+```
+
+Add number of clusters per resolution.
+```{r}
+total.shannon$clusters <- tidy.node %>% group_by(resolution) %>% summarise(clusters = length(cluster)) %>% pull(clusters)
+head(total.shannon)
+```
+
+Grab only those resolutions with a total shannon entropy of zero.
+```{r}
+zero.shannon <- total.shannon %>% filter(shannon == 0)
+head(zero.shannon)
+```
+
+For each number of clusters, how many resolutions had a total shannon entropy of zero?
+```{r}
+table(zero.shannon$clusters)
+```
+Since we consecutively clustered cells at every number of clusters, we used a low enough resolution. 
+
+Rank number of clusters by number of resolutions from high to low.
+```{r}
+sort(table(zero.shannon$clusters), decreasing = TRUE)
+```
+
+Heat map can only fit 79 genes. For 10 genes each cluster, the max clusters you can show is 7. For 5 genes each cluster, the max clusters you can show is 15. So we can't cluster at 20 or 17 anyway.
+
+How do we find the best resolution for each number of clusters?
+
+Grab all resolutions at 2 clusters.
+```{r}
+res.per.clust <- as.numeric(as.character(zero.shannon %>% filter(clusters == 3) %>% pull(resolution)))
+res.per.clust
+```
+
+Calculate segments. 
+```{r}
+seg.per.clust <- c(0, which(as.integer(diff(x = res.per.clust / 0.0001)) > 1), length(res.per.clust))
+seg.per.clust
+```
+
+Calculate distance of each segment.
+```{r}
+dis.per.seg <- diff(x = seg.per.clust)
+dis.per.seg
+```
+
+Grab best resoluton at each cluster.
+```{r}
+best.res.per.clust <- res.per.clust[seg.per.clust[which.max(dis.per.seg) + 1]]
+best.res.per.clust
+```
+
+```{r}
+best.res.per.clust <- vector()
+
+for (i in 1:42) {
+  res.per.clust <- as.numeric(as.character(zero.shannon %>% filter(clusters == i) %>% pull(resolution)))
+  seg.per.clust <- c(0, which(as.integer(diff(x = res.per.clust / 0.0001)) > 1), length(res.per.clust))
+  dis.per.seg <- diff(x = seg.per.clust)
+  best.res.per.clust <- res.per.clust[seg.per.clust[which.max(dis.per.seg) + 1]]
+  print(i)
+  print(best.res.per.clust)
+}
+
+```
+
+
+
+
+

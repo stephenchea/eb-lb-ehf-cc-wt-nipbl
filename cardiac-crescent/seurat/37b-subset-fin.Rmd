@@ -1,0 +1,110 @@
+---
+title: "Generate UMAPs"
+output: html_notebook
+---
+
+```{bash}
+scp -r schea2@hpc3.rcic.uci.edu:'/share/crsp/lab/alcalof/schea2/20220414-seurat/umap-by-embryo-fin-integr-umap.Robj' /Volumes/all_ssd/20220414-seurat
+
+#scp -r schea2@hpc3.rcic.uci.edu:'/share/crsp/lab/alcalof/schea2/20220414-seurat/fin-integr-cluster-iters' /Volumes/all_ssd/20220414-seurat
+```
+
+```{r}
+library(Seurat)
+library(tidyverse)
+library(RColorBrewer)
+library(scales)
+```
+
+```{r}
+load(file = "/Volumes/all_ssd/20220414-seurat/umap-by-embryo-fin-integr-umap.Robj")
+```
+
+```{r}
+stage.umap <- ggplot() +
+geom_point(data = sample(whole.umap), mapping = aes(x = umap.1, y = umap.2, color = stage), shape = 20, stroke = 0, size = 0.5) +
+    labs(title = "Nipbl FIN/+", x = "UMAP 1", y = "UMAP 2", color = "Stage") +
+    guides(color = guide_legend(override.aes = list(size = 2.3))) +
+    theme_classic(base_size = 7) +
+    theme(axis.line = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), plot.title = element_text(hjust = 0.5), legend.key.size = unit(7, "pt"))
+
+ggsave(plot = stage.umap, filename = "/Volumes/all_ssd/20220414-seurat/umap-by-stage-fin-integr.png", device = "png", width = 3.5, height = 2.25)
+
+stage.umap <- ggplot() +
+geom_point(data = sample(whole.umap), mapping = aes(x = umap.1, y = umap.2, color = stage), shape = 20, stroke = 0, size = 0.5) +
+    facet_wrap(~stage, ncol = 2) +
+    labs(title = "Nipbl FIN/+", x = "UMAP 1", y = "UMAP 2", color = "Stage") +
+    guides(color = guide_legend(override.aes = list(size = 2.3))) +
+    theme_classic(base_size = 7) +
+    theme(axis.line = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), plot.title = element_text(hjust = 0.5), legend.key.size = unit(7, "pt"), strip.background = element_blank())
+
+ggsave(plot = stage.umap, filename = "/Volumes/all_ssd/20220414-seurat/umap-facet-stage-fin-integr.png", device = "png", width = 6.5, height = 2.25)
+
+embryo.umap <- ggplot() +
+geom_point(data = sample(whole.umap %>% filter(stage == "LB")), mapping = aes(x = umap.1, y = umap.2, color = embryo), shape = 20, stroke = 0, size = 0.5) +
+    scale_color_manual(values = hue_pal()(28)[c(19, 7, 21, 9, 23, 11)]) +
+    labs(title = "Late Bud, Nipbl FIN/+", x = "UMAP 1", y = "UMAP 2", color = "Embryo") +
+    guides(color = guide_legend(override.aes = list(size = 2.3))) +
+    theme_classic(base_size = 7) +
+    theme(axis.line = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), plot.title = element_text(hjust = 0.5), legend.key.size = unit(7, "pt"))
+
+ggsave(plot = embryo.umap, filename = "/Volumes/all_ssd/20220414-seurat/umap-by-embryo-late-bud-fin-integr.png", device = "png", width = 3.5, height = 2.25)
+
+embryo.umap <- ggplot() +
+geom_point(data = sample(whole.umap %>% filter(stage == "LB")), mapping = aes(x = umap.1, y = umap.2, color = embryo), shape = 20, stroke = 0, size = 0.5) +
+    facet_wrap(~embryo, ncol = 4) +
+    scale_color_manual(values = hue_pal()(28)[c(19, 7, 21, 9, 23, 11)]) +
+    labs(title = "Late Bud, Nipbl FIN/+", x = "UMAP 1", y = "UMAP 2", color = "Embryo") +
+    guides(color = guide_legend(override.aes = list(size = 2.3))) +
+    theme_classic(base_size = 7) +
+    theme(axis.line = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), plot.title = element_text(hjust = 0.5), legend.key.size = unit(7, "pt"), strip.background = element_blank())
+
+ggsave(plot = embryo.umap, filename = "/Volumes/all_ssd/20220414-seurat/umap-facet-embryo-late-bud-fin-integr.png", device = "png", width = 6.5, height = 3.6)
+
+embryo.umap <- ggplot() +
+geom_point(data = sample(whole.umap %>% filter(stage == "CC")), mapping = aes(x = umap.1, y = umap.2, color = embryo), shape = 20, stroke = 0, size = 0.5) +
+    scale_color_manual(values = hue_pal()(28)[c(20, 8, 22, 10, 24, 12, 26, 14)]) +
+    labs(title = "Cardiac Crescent, Nipbl FIN/+", x = "UMAP 1", y = "UMAP 2", color = "Embryo") +
+    guides(color = guide_legend(override.aes = list(size = 2.3))) +
+    theme_classic(base_size = 7) +
+    theme(axis.line = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), plot.title = element_text(hjust = 0.5), legend.key.size = unit(7, "pt"))
+
+ggsave(plot = embryo.umap, filename = "/Volumes/all_ssd/20220414-seurat/umap-by-embryo-cardiac-crescent-fin-integr.png", device = "png", width = 3.5, height = 2.25)
+
+embryo.umap <- ggplot() +
+geom_point(data = sample(whole.umap %>% filter(stage == "CC")), mapping = aes(x = umap.1, y = umap.2, color = embryo), shape = 20, stroke = 0, size = 0.5) +
+    facet_wrap(~embryo, ncol = 4) +
+    scale_color_manual(values = hue_pal()(28)[c(20, 8, 22, 10, 24, 12, 26, 14)]) +
+    labs(title = "Cardiac Crescent, Nipbl FIN/+", x = "UMAP 1", y = "UMAP 2", color = "Embryo") +
+    guides(color = guide_legend(override.aes = list(size = 2.3))) +
+    theme_classic(base_size = 7) +
+    theme(axis.line = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), plot.title = element_text(hjust = 0.5), legend.key.size = unit(7, "pt"), strip.background = element_blank())
+
+ggsave(plot = embryo.umap, filename = "/Volumes/all_ssd/20220414-seurat/umap-facet-embryo-cardiac-crescent-fin-integr.png", device = "png", width = 6.5, height = 3.6)
+```
+
+```{r}
+for (i in seq(from = 0, to = 0.2, by = 0.0001)) {
+    
+filename.robj <- paste0("/Volumes/all_ssd/20220414-seurat/fin-integr-cluster-iters/cluster-per-cell-fin-integr-res-", sprintf(fmt = "%.4f", i), ".Robj")
+load(file = filename.robj)
+
+whole.umap$cluster <- fin.integr.active.ident
+
+whole.label <- whole.umap %>% group_by(cluster) %>% summarize(umap.1 = median(umap.1), umap.2 = median(umap.2))
+
+cluster.umap <- ggplot() +
+geom_point(data = sample(whole.umap), mapping = aes(x = umap.1, y = umap.2, color = cluster), shape = 20, stroke = 0, size = 0.5) +
+geom_text(data = whole.label, mapping = aes(x = umap.1, y = umap.2, label = cluster), size = 2.3) +
+labs(title = "Nipbl FIN/+", x = "UMAP 1", y = "UMAP 2", color = "Cluster") +
+guides(color = guide_legend(override.aes = list(size = 2.3))) +
+theme_classic(base_size = 7) +
+theme(axis.line = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), plot.title = element_text(hjust = 0.5), legend.key.size = unit(7, "pt"))
+
+filename.png <- paste0("/Volumes/all_ssd/20220414-seurat/fin-integr-cluster-iters/umap-by-cluster-fin-integr-res-", sprintf(fmt = "%.4f", i), ".png")
+ggsave(plot = cluster.umap, filename = filename.png, device = "png", width = 3.5, height = 2.25, units = "in")
+
+}
+
+```
+

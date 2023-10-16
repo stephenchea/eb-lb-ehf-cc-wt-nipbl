@@ -1,0 +1,86 @@
+---
+title: "Where do all the clusters map in the whole embryo?"
+output: html_notebook
+---
+
+```{r}
+library(Seurat)
+library(tidyverse)
+library(RColorBrewer)
+```
+
+Load umap whole.
+```{r}
+load("/Volumes/all_ssd/20220414-seurat/fin-integr-res-0.0151/umap-by-cluster-fin-integr-res-0.0151.Robj")
+umap.whole$cluster.whole <- as.character(as.vector(umap.whole$cluster.whole))
+head(umap.whole)
+table(umap.whole$cluster.whole)
+```
+
+Load umap cluster.
+```{r}
+load("/Volumes/all_ssd/20220414-seurat/fin-integr-res-0.0151/fin-1-res-0.037/umap-by-cluster-fin-1-res-0.037.Robj")
+umap.1 <- clust.umap
+table(umap.1$cluster.cluster)
+
+load("/Volumes/all_ssd/20220414-seurat/fin-integr-res-0.0151/fin-2-res-0.067/umap-by-cluster-fin-2-res-0.067.Robj")
+umap.2 <- clust.umap
+table(umap.2$cluster.cluster)
+
+load("/Volumes/all_ssd/20220414-seurat/fin-integr-res-0.0151/fin-3-res-0.015/umap-by-cluster-fin-3-res-0.015.Robj")
+umap.3 <- clust.umap
+table(umap.3$cluster.cluster)
+```
+
+Recode 2 cluster into subclusters.
+```{r}
+umap.whole[as.vector(rownames(umap.1 %>% filter(cluster.cluster == "1.1"))), "cluster.whole"] <- "1.1"
+umap.whole[as.vector(rownames(umap.1 %>% filter(cluster.cluster == "1.2"))), "cluster.whole"] <- "1.2"
+umap.whole[as.vector(rownames(umap.1 %>% filter(cluster.cluster == "1.3"))), "cluster.whole"] <- "1.3"
+umap.whole[as.vector(rownames(umap.1 %>% filter(cluster.cluster == "1.4"))), "cluster.whole"] <- "1.4"
+
+umap.whole[as.vector(rownames(umap.2 %>% filter(cluster.cluster == "2.1"))), "cluster.whole"] <- "2.1"
+umap.whole[as.vector(rownames(umap.2 %>% filter(cluster.cluster == "2.2"))), "cluster.whole"] <- "2.2"
+umap.whole[as.vector(rownames(umap.2 %>% filter(cluster.cluster == "2.3"))), "cluster.whole"] <- "2.3"
+umap.whole[as.vector(rownames(umap.2 %>% filter(cluster.cluster == "2.4"))), "cluster.whole"] <- "2.4"
+
+umap.whole[as.vector(rownames(umap.3 %>% filter(cluster.cluster == "3.1"))), "cluster.whole"] <- "3.1"
+umap.whole[as.vector(rownames(umap.3 %>% filter(cluster.cluster == "3.2"))), "cluster.whole"] <- "3.2"
+
+umap.whole$cluster.whole <- factor(umap.whole$cluster.whole, levels = c("1.1", "1.2", "1.3", "1.4", "2.1", "2.2", "2.3", "2.4", "3.1", "3.2", "4"))
+
+table(umap.whole$cluster.whole)
+```
+
+Generate label umap.
+```{r}
+whole.label <- umap.whole %>% group_by(cluster.whole) %>% summarize(umap.1 = median(umap.1), umap.2 = median(umap.2))
+```
+
+Generate cluster umap.
+```{r}
+cluster.umap <- ggplot() +
+geom_point(data = sample(umap.whole), mapping = aes(x = umap.1, y = umap.2, color = cluster.whole), shape = 20, stroke = 0, size = 0.5) +
+geom_text(data = whole.label, mapping = aes(x = umap.1, y = umap.2, label = cluster.whole), size = 2.3) +
+labs(title = "Whole Embryo, Nipbl FIN/+", x = "UMAP 1", y = "UMAP 2", color = "Cluster") +
+  guides(color = guide_legend(override.aes = list(size = 2.3))) +
+theme_classic(base_size = 7) +
+theme(axis.line = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), plot.title = element_text(hjust = 0.5, size = 7), legend.key.size = unit(7, "pt"))
+
+cluster.umap
+```
+
+```{r}
+save(umap.whole, file = "/Volumes/all_ssd/20220414-seurat/fin-integr-res-0.0151/umap-by-cluster-fin-integr-res-0.0151-11.Robj")
+```
+
+```{r}
+ggsave(plot = cluster.umap, filename = "/Volumes/all_ssd/20220414-seurat/fin-integr-res-0.0151/umap-by-cluster-fin-integr-res-0.0151-11.png", device = "png", width = 3.5, height = 2.25, units = "in")
+```
+
+Upload files onto hpc3.
+```{bash}
+scp /Volumes/all_ssd/20220414-seurat/fin-integr-res-0.0151/umap-by-cluster-fin-integr-res-0.0151-11.png schea2@hpc3.rcic.uci.edu:/share/crsp/lab/alcalof/schea2/20220414-seurat/fin-integr-res-0.0151
+
+scp /Volumes/all_ssd/20220414-seurat/fin-integr-res-0.0151/umap-by-cluster-fin-integr-res-0.0151-11.Robj schea2@hpc3.rcic.uci.edu:/share/crsp/lab/alcalof/schea2/20220414-seurat/fin-integr-res-0.0151
+```
