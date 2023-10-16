@@ -1,0 +1,128 @@
+---
+title: "URD"
+output: html_notebook
+---
+
+Load libraries.
+```{r}
+library(Seurat)
+library(URD)
+library(tidyverse)
+```
+
+Load merged eb, lb, ehf.
+```{r}
+load("/Volumes/Bud_SSD/20230122-urd/merged-seurat.Robj")
+```
+
+Grab count data and meta data.
+```{r}
+count.merged <- as.matrix(merged.seurat@assays$RNA@counts)
+meta.merged <- as.data.frame(merged.seurat@meta.data)
+
+rm(merged.seurat)
+```
+
+Create urd.
+```{r}
+merged.urd <- createURD(count.data = count.merged, meta = meta.merged, min.cells = 3, min.counts = 0)
+```
+
+Add stage.
+```{r}
+merged.urd@group.ids$stage <- as.character(merged.urd@meta[rownames(merged.urd@group.ids),"stage"])
+```
+
+Add embryo.
+```{r}
+merged.urd@group.ids$embryo <- as.character(merged.urd@meta[rownames(merged.urd@group.ids),"embryo"])
+```
+
+
+```{r}
+#embryo <- sort(unique(merged.urd@group.ids$embryo))
+embryo <- c("EB1", "EB2", "AVJ4-56", "AYQ8-11", "AYR4-57", "BBH6-17", "AXL7-21", "EHF1", "EHF2")
+```
+
+Calculate variable genes. Use only Flox embryos.
+```{r}
+var.by.embryo <- lapply(c(1, 2, 3, 4, 5, 6, 7, 8, 9), function(n) {
+  findVariableGenes(merged.urd, cells.fit=cellsInCluster(merged.urd, "embryo", embryo[n]), set.object.var.genes=F, diffCV.cutoff=0.3, mean.min=.005, mean.max=100, main.use=paste0("Embryo ", embryo[n]), do.plot=T)
+})
+```
+
+Add variable genes.
+```{r}
+var.genes <- sort(unique(unlist(var.by.embryo)))
+merged.urd@var.genes <- var.genes
+```
+
+Calculate PCA.
+```{r}
+merged.urd <- calcPCA(merged.urd, mp.factor = 2)
+pcSDPlot(merged.urd)
+
+set.seed(19)
+merged.urd <- calcTsne(object = merged.urd)
+plotDim(merged.urd, "stage", plot.title = "tSNE: Stage")
+plotDim(merged.urd, "cluster.whole", plot.title = "tSNE: Cluster")
+```
+
+Save.
+```{r}
+save(merged.urd, file = "merged-tsne-urd.Robj")
+```
+
+Load.
+```{r}
+load("merged-tsne-urd.Robj")
+```
+
+Calculate diffusion map.
+```{r}
+merged.urd <- calcDM(merged.urd, knn = sqrt(dim(merged.urd@meta)[1]), sigma=NULL)
+
+plotDimArray(merged.urd, reduction.use = "dm", dims.to.plot = 1:8, outer.title = "Diffusion Map (Sigma NULL, 214 NNs): Stage", label="stage", plot.title="", legend=F)
+
+plotDim(merged.urd, "stage", transitions.plot = 10000, plot.title="Developmental stage (with transitions)")
+
+plotDim(merged.urd, "cluster.whole", transitions.plot = 10000, plot.title="Developmental stage (with transitions)")
+```
+
+Add cluster and stage.
+```{r}
+merged.urd@meta <- merged.urd@meta %>% unite("cluster.stage", cluster.whole:stage, remove = FALSE)
+merged.urd@group.ids$cluster.stage <- as.character(merged.urd@meta[rownames(merged.urd@group.ids),"cluster.stage"])
+```
+
+Calculate pseudotime.
+```{r}
+root.cells <- cellsInCluster(merged.urd, "cluster.stage", "1.1_eb")
+
+merged.floods <- floodPseudotime(merged.urd, root.cells = root.cells, n=50, minimum.cells.flooded = 2, verbose=F)
+
+merged.urd <- floodPseudotimeProcess(merged.urd, merged.floods, floods.name="pseudotime")
+
+pseudotimePlotStabilityOverall(merged.urd)
+
+plotDim(merged.urd, "pseudotime")
+
+plotDists(merged.urd, "pseudotime", "stage", plot.title="Pseudotime by stage")
+
+plotDists(merged.urd, "pseudotime", "embryo", plot.title="Pseudotime by embryo")
+
+plotDists(merged.urd, "pseudotime", "genotype", plot.title="Pseudotime by genotype")
+```
+Save.
+```{r}
+save(merged.urd, file = "merged-pseudotime-urd.Robj")
+```
+
+Extract pseudotime.
+```{r}
+pseudo.data <- data.frame(rownames(merged.urd@pseudotime), merged.urd@meta$stage, merged.urd@meta$embryo, merged.urd@meta$genotype, merged.urd@meta$cluster.whole, merged.urd@meta$germ.whole, merged.urd@pseudotime$pseudotime)
+
+save(pseudo.data, file = "pseudotime-urd.Robj")
+write.csv(pseudo.data, file = "pseudotime-urd.csv")
+```
+
