@@ -1,0 +1,87 @@
+---
+title: "Where do all the clusters map in Cluster 1?"
+output: html_notebook
+---
+
+Load libraries.
+```{r}
+library(Seurat)
+library(tidyverse)
+library(RColorBrewer)
+```
+
+Load umap of cluster.
+```{r}
+load("/Volumes/all_ssd/20220414-seurat/fin-integr-projected-flox-integr-res-0.0120/fin-1-projected-flox-1-res-0.074/projected-umap-by-stage-embryo-cluster-fin-1-projected-flox-1-res-0.074.Robj")
+umap.1 <- clust.umap
+umap.1$cluster.clust.flox <- as.character(clust.umap$cluster.clust.flox)
+head(umap.1)
+
+table(umap.1$cluster.clust.flox)
+```
+
+Load umap of subclusters.
+```{r}
+load("/Volumes/all_ssd/20220414-seurat/fin-integr-projected-flox-integr-res-0.0120/fin-1-projected-flox-1-res-0.074/fin-1.1-projected-flox-1.1-res-0.177/projected-umap-by-stage-embryo-cluster-fin-1.1-projected-flox-1.1-res-0.177.Robj")
+umap.1.1 <- subclust.umap
+
+load("/Volumes/all_ssd/20220414-seurat/fin-integr-projected-flox-integr-res-0.0120/fin-1-projected-flox-1-res-0.074/fin-1.2-projected-flox-1.2-res-0.104/projected-umap-by-stage-embryo-cluster-fin-1.2-projected-flox-1.2-res-0.104.Robj")
+umap.1.2 <- subclust.umap
+
+load("/Volumes/all_ssd/20220414-seurat/fin-integr-projected-flox-integr-res-0.0120/fin-1-projected-flox-1-res-0.074/fin-1.3-projected-flox-1.3-res-0.056/projected-umap-by-stage-embryo-cluster-fin-1.3-projected-flox-1.3-res-0.056.Robj")
+umap.1.3 <- subclust.umap
+```
+
+Recode cluster into subclusters.
+```{r}
+umap.1[as.vector(rownames(umap.1.1 %>% filter(cluster.subclust.flox == "1.1.1"))), "cluster.clust.flox"] <- "1.1.1"
+umap.1[as.vector(rownames(umap.1.1 %>% filter(cluster.subclust.flox == "1.1.2"))), "cluster.clust.flox"] <- "1.1.2"
+umap.1[as.vector(rownames(umap.1.1 %>% filter(cluster.subclust.flox == "1.1.3"))), "cluster.clust.flox"] <- "1.1.3"
+umap.1[as.vector(rownames(umap.1.1 %>% filter(cluster.subclust.flox == "1.1.4"))), "cluster.clust.flox"] <- "1.1.4"
+
+umap.1[as.vector(rownames(umap.1.2 %>% filter(cluster.subclust.flox == "1.2.1"))), "cluster.clust.flox"] <- "1.2.1"
+umap.1[as.vector(rownames(umap.1.2 %>% filter(cluster.subclust.flox == "1.2.2"))), "cluster.clust.flox"] <- "1.2.2"
+umap.1[as.vector(rownames(umap.1.2 %>% filter(cluster.subclust.flox == "1.2.3"))), "cluster.clust.flox"] <- "1.2.3"
+umap.1[as.vector(rownames(umap.1.2 %>% filter(cluster.subclust.flox == "1.2.4"))), "cluster.clust.flox"] <- "1.2.4"
+
+umap.1[as.vector(rownames(umap.1.3 %>% filter(cluster.subclust.flox == "1.3.1"))), "cluster.clust.flox"] <- "1.3.1"
+umap.1[as.vector(rownames(umap.1.3 %>% filter(cluster.subclust.flox == "1.3.2"))), "cluster.clust.flox"] <- "1.3.2"
+
+umap.1$cluster.clust.flox <- factor(umap.1$cluster.clust.flox, levels = c("1.1.1", "1.1.2", "1.1.3", "1.1.4", "1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.3.1", "1.3.2", "1.4", "1.5"))
+
+table(umap.1$cluster.clust.flox)
+```
+
+Generate label umap.
+```{r}
+umap.label <- umap.1 %>% group_by(cluster.clust.flox) %>% summarize(umap.1 = median(umap.1), umap.2 = median(umap.2))
+```
+
+Generate cluster umap.
+```{r}
+cluster.umap <- ggplot() +
+geom_point(data = sample(umap.1), mapping = aes(x = umap.1, y = umap.2, color = cluster.clust.flox), shape = 20, stroke = 0, size = 0.5) +
+geom_text(data = umap.label, mapping = aes(x = umap.1, y = umap.2, label = cluster.clust.flox), size = 2.3) +
+labs(title = "Cluster 1, Nipbl FIN/+", x = "UMAP 1", y = "UMAP 2", color = "Nipbl Flox/+\nCluster") +
+  guides(color = guide_legend(override.aes = list(size = 2.3))) +
+theme_classic(base_size = 7) +
+theme(axis.line = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), plot.title = element_text(hjust = 0.5, size = 7), legend.key.size = unit(7, "pt"))
+
+cluster.umap
+```
+
+```{r}
+subclust.umap <- umap.1
+save(subclust.umap, file = "/Volumes/all_ssd/20220414-seurat/fin-integr-projected-flox-integr-res-0.0120/fin-1-projected-flox-1-res-0.074/projected-umap-by-stage-embryo-cluster-fin-1-projected-flox-1-res-0.074-12.Robj")
+```
+
+```{r}
+ggsave(plot = cluster.umap, filename = "/Volumes/all_ssd/20220414-seurat/fin-integr-projected-flox-integr-res-0.0120/fin-1-projected-flox-1-res-0.074/projected-umap-by-stage-embryo-cluster-fin-1-projected-flox-1-res-0.074-12.png", device = "png", width = 3.5, height = 2.25, units = "in")
+```
+
+Upload files onto hpc3.
+```{bash}
+scp /Volumes/all_ssd/20220414-seurat/fin-integr-projected-flox-integr-res-0.0120/fin-1-projected-flox-1-res-0.074/projected-umap-by-stage-embryo-cluster-fin-1-projected-flox-1-res-0.074-12.png schea2@hpc3.rcic.uci.edu:/share/crsp/lab/alcalof/schea2/20220414-seurat/fin-integr-projected-flox-integr-res-0.0120/fin-1-projected-flox-1-res-0.074
+
+scp /Volumes/all_ssd/20220414-seurat/fin-integr-projected-flox-integr-res-0.0120/fin-1-projected-flox-1-res-0.074/projected-umap-by-stage-embryo-cluster-fin-1-projected-flox-1-res-0.074-12.Robj schea2@hpc3.rcic.uci.edu:/share/crsp/lab/alcalof/schea2/20220414-seurat/fin-integr-projected-flox-integr-res-0.0120/fin-1-projected-flox-1-res-0.074
+```
