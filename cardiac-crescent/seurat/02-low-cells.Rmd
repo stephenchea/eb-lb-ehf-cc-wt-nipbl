@@ -1,0 +1,347 @@
+---
+title: "Which cells are low quality cells?"
+output: html_notebook
+---
+
+Download Seurat object.
+```{bash}
+#scp schea2@hpc3.rcic.uci.edu:/share/crsp/lab/alcalof/schea2/20220414-seurat/all-aggr-seurat.Robj /Volumes/all_ssd/20220414-seurat
+```
+
+Load libraries.
+```{r}
+library(Seurat)
+library(tidyverse)
+library(pracma)
+library(scales)
+```
+
+Load Seurat object.
+```{r}
+load("/Volumes/all_ssd/20220414-seurat/all-aggr-seurat.Robj")
+```
+
+Plot histogram of number of umi's.
+```{r}
+ggplot(data = all.aggr@meta.data, mapping = aes(x = nCount_RNA)) +
+  geom_histogram() +
+  geom_vline(xintercept = mean(all.aggr$nCount_RNA), color = "blue") +
+  geom_vline(xintercept = median(all.aggr$nCount_RNA), color = "red") +
+  scale_x_continuous(trans = "log10")
+```
+
+Plot histogram of number of genes.
+```{r}
+ggplot(data = all.aggr@meta.data, mapping = aes(x = nFeature_RNA)) +
+  geom_histogram() +
+  geom_vline(xintercept = mean(all.aggr$nFeature_RNA), color = "blue") +
+  geom_vline(xintercept = median(all.aggr$nFeature_RNA), color = "red") +
+  scale_x_continuous(trans = "log10")
+```
+
+Calculate % mitochondrial genes.
+```{r}
+all.aggr[["percent.mt"]] <- PercentageFeatureSet(all.aggr, pattern = "^mt-")
+head(all.aggr@meta.data)
+```
+
+Plot histogram of % mitochondrial genes.
+```{r}
+ggplot(data = all.aggr@meta.data, mapping = aes(x = percent.mt)) +
+  geom_histogram() +
+    geom_vline(xintercept = mean(all.aggr$percent.mt), color = "blue") +
+  geom_vline(xintercept = median(all.aggr$percent.mt), color = "red") +
+  scale_x_continuous(trans = "log10")
+```
+Largest portion of distribution normal. Obvious hump of cells with low % mitochondrial genes. Odd that they have low % mitochondrial genes. Usually low is better, but here, most cells have a % between 1 and 10.
+
+% mitochondrial genes is dependent on number of genes detected. Do these correpond to cells with low numbers of genes?
+```{r}
+ggplot(data = all.aggr@meta.data, mapping = aes(x = percent.mt, y = nFeature_RNA)) +
+  geom_point(size = 0.1) +
+      geom_vline(xintercept = mean(all.aggr$percent.mt), color = "blue") +
+  geom_vline(xintercept = median(all.aggr$percent.mt), color = "red") +
+  scale_x_continuous(trans = "log10") +
+  scale_y_continuous(trans = "log10")
+```
+
+Calculate outliers using median absolute deviation.
+```{r}
+all.aggr$log.mito <- log10(all.aggr$percent.mt)
+median.mito <- median(all.aggr$log.mito)
+all.aggr$d.mito <- abs(all.aggr$log.mito - median.mito)
+md.mito <- mad(all.aggr$log.mito)
+all.aggr$mito.out <- all.aggr$d.mito > md.mito*3
+sum(all.aggr$mito.out)
+```
+
+```{r}
+ggplot(data = all.aggr@meta.data, mapping = aes(x = percent.mt, y = nFeature_RNA, color = mito.out)) +
+  geom_point(size = 0.1) +
+  scale_x_continuous(trans = "log10") +
+  scale_y_continuous(trans = "log10")
+
+```
+
+What does histogram of % mito now look?
+```{r}
+mito.hist <- ggplot() +
+  geom_histogram(data = all.aggr@meta.data, mapping = aes(x = percent.mt, fill = mito.out, color = mito.out), alpha = 0.5, size = 0.33) +
+  scale_x_continuous(trans = "log10", labels = scales::percent_format(scale = 1)) +
+  scale_fill_discrete(labels = c("<=3 MAD", "> 3 MAD")) +
+  scale_color_discrete(labels = c("<=3 MAD", "> 3 MAD")) +
+  labs(x = "% Mitochondrial Genes", y = "Number of Cells", fill = "", color = "", tag = "A") +
+  theme_classic(base_size = 7) +
+  theme(plot.title = element_text(hjust = 0.5), legend.key.size = unit(7, "pt"), legend.position = "top", plot.tag = element_text(size = 9, face = "bold"))
+
+mito.hist
+
+ggsave(plot = mito.hist, filename = "mito-hist-plot-low-quality-cells.png", device = "png", units = "in", width = 2.16, height = 3)
+
+```
+
+Genes?
+```{r}
+ggplot(data = all.aggr@meta.data, mapping = aes(x = nFeature_RNA, color = mito.out)) +
+  geom_histogram() +
+  scale_x_continuous(trans = "log10")
+```
+
+UMIs?
+```{r}
+ggplot(data = all.aggr@meta.data, mapping = aes(x = nCount_RNA, color = mito.out)) +
+  geom_histogram() +
+  scale_x_continuous(trans = "log10")
+```
+
+What does vln plot mito now look?
+```{r}
+mito.plot <- ggplot() +
+  geom_jitter(data = all.aggr@meta.data, mapping = aes(y = percent.mt, x = mito.out, group = mito.out), stroke = 0, size = 0.25) +
+  geom_violin(data = all.aggr@meta.data, mapping = aes(y = percent.mt, x = mito.out, color = mito.out), alpha = 0) +
+  scale_x_discrete(labels = c("<= 3MAD", "> 3MAD")) +
+  scale_y_continuous(trans = "log10", labels = scales::percent_format(scale = 1)) +
+  labs(x = "", y = "% Mitochondrial Genes", fill = "", color = "", tag = "A") +
+  theme_classic(base_size = 7) +
+  theme(plot.title = element_text(hjust = 0.5), legend.position = "none", plot.tag = element_text(size = 9, face = "bold"))
+
+mito.plot
+
+ggsave(plot = mito.plot, filename = "mito-vln-plot-low-quality-cells.png", device = "png", units = "in", width = 2.16, height = 4.5)
+```
+
+Can we find outliers among genes after already filtering out outliers from mito?
+```{r}
+all.aggr$log.gene <- log10(all.aggr$nFeature_RNA)
+median.gene <- median(all.aggr@meta.data %>% filter(mito.out == FALSE) %>% pull(log.gene))
+all.aggr$d.gene <- abs(all.aggr$log.gene - median.gene)
+md.gene <- mad(all.aggr@meta.data %>% filter(mito.out == FALSE) %>% pull(log.gene))
+all.aggr$gene.out <- all.aggr$d.gene > md.gene*3
+sum(all.aggr$gene.out)
+```
+
+Where do these cells lie along histogram of number of genes?
+```{r}
+gene.hist <- ggplot() +
+  geom_histogram(data = all.aggr@meta.data, mapping = aes(x = nFeature_RNA, fill = gene.out, color = gene.out), alpha = 0.5, size = 0.33) +
+  scale_x_continuous(trans = "log10", breaks=trans_breaks('log10', function(x) 10^x), labels=trans_format('log10', math_format(10^.x))) +
+  scale_fill_discrete(labels = c("<=3 MAD", "> 3 MAD")) +
+  scale_color_discrete(labels = c("<=3 MAD", "> 3 MAD")) +
+  labs(x = "Number of Genes", y = "Number of Cells", fill = "", color = "", tag = "B") +
+  theme_classic(base_size = 7) +
+  theme(plot.title = element_text(hjust = 0.5), legend.key.size = unit(7, "pt"), legend.position = "top", plot.tag = element_text(size = 9, face = "bold"))
+
+gene.hist 
+
+ggsave(plot = gene.hist, filename = "gene-hist-plot-low-quality-cells.png", device = "png", units = "in", width = 2.16, height = 3)
+
+
+```
+
+Along number of umis?
+```{r}
+ggplot(data = all.aggr@meta.data %>% filter(mito.out == FALSE), mapping = aes(x = nCount_RNA, color = gene.out)) +
+  geom_histogram() +
+  scale_x_continuous(trans = "log10")
+```
+
+What does vln plot genes now look?
+```{r}
+gene.plot <- ggplot(data = all.aggr@meta.data %>% filter(mito.out == FALSE)) +
+  geom_jitter(mapping = aes(y = nFeature_RNA, x = gene.out, group = gene.out), stroke = 0, size = 0.25) +
+  geom_violin(mapping = aes(y = nFeature_RNA, x = gene.out, color = gene.out), alpha = 0) +
+  scale_x_discrete(labels = c("<= 3MAD", "> 3MAD")) +
+  scale_y_continuous(trans = "log10", breaks=trans_breaks('log10', function(x) 10^x), labels=trans_format('log10', math_format(10^.x))) +
+  labs(x = "", y = "Number of Genes", fill = "", color = "", tag = "B") +
+  theme_classic(base_size = 7) +
+  theme(plot.title = element_text(hjust = 0.5), legend.position = "none", , plot.tag = element_text(size = 9, face = "bold"))
+
+gene.plot
+
+ggsave(plot = gene.plot, filename = "gene-vln-plot-low-quality-cells.png", device = "png", units = "in", width = 2.16, height = 4.5)
+```
+
+Can we find outliers among umis after already filtering out mito and genes?
+```{r}
+all.aggr$log.umi <- log10(all.aggr$nCount_RNA)
+median.umi <- median(all.aggr@meta.data %>% filter(mito.out == FALSE) %>% filter(gene.out == FALSE) %>% pull(log.umi))
+all.aggr$d.umi <- abs(all.aggr$log.umi - median.umi)
+md.umi <- mad(all.aggr@meta.data %>% filter(mito.out == FALSE) %>% filter(gene.out == FALSE) %>% pull(log.umi))
+all.aggr$umi.out <- all.aggr$d.umi > md.umi*3
+sum(all.aggr$umi.out)
+```
+
+Where do these lie along umis?
+```{r}
+umi.hist <- ggplot() +
+  geom_histogram(data = all.aggr@meta.data %>% filter(mito.out == FALSE) %>% filter(gene.out == FALSE), mapping = aes(x = nCount_RNA, color = umi.out, fill = umi.out), alpha = 0.5, size = 0.33) +
+  scale_x_continuous(trans = "log10", breaks=trans_breaks('log10', function(x) 10^x), labels=trans_format('log10', math_format(10^.x))) +
+  scale_fill_discrete(labels = c("<=3 MAD", "> 3 MAD")) +
+  scale_color_discrete(labels = c("<=3 MAD", "> 3 MAD")) +
+  labs(x = "Number of UMIs", y = "Number of Cells", fill = "", color = "", tag = "C") +
+  theme_classic(base_size = 7) +
+  theme(plot.title = element_text(hjust = 0.5), legend.key.size = unit(7, "pt"), legend.position = "top", plot.tag = element_text(size = 9, face = "bold"))
+
+umi.hist
+
+ggsave(plot = umi.hist, filename = "umi-hist-plot-low-quality-cells.png", device = "png", units = "in", width = 2.16, height = 3)
+```
+
+Plot dots.
+```{r}
+ggplot(data = all.aggr@meta.data %>% filter(mito.out == FALSE) %>% filter(gene.out == FALSE), mapping = aes(x = nCount_RNA, y = 1, color = umi.out)) +
+  geom_point(position = position_jitter(), size = 0.1) +
+  scale_x_continuous(trans = "log10")
+```
+So some upper and some lower range cells. 
+
+What does vln plot genes now look?
+```{r}
+umi.plot <- ggplot(data = all.aggr@meta.data %>% filter(mito.out == FALSE) %>% filter(gene.out == FALSE)) +
+  geom_jitter(mapping = aes(y = nCount_RNA, x = umi.out, group = umi.out), stroke = 0, size = 0.1) +
+  geom_violin(mapping = aes(y = nCount_RNA, x = umi.out, color = umi.out), alpha = 0) +
+  scale_x_discrete(labels = c("<= 3MAD", "> 3MAD")) +
+  scale_y_continuous(trans = "log10", breaks=trans_breaks('log10', function(x) 10^x), labels=trans_format('log10', math_format(10^.x))) +
+  labs(x = "", y = "Number of UMIs", fill = "", color = "", tag = "C") +
+  theme_classic(base_size = 7) +
+  theme(plot.title = element_text(hjust = 0.5), legend.position = "none", plot.tag = element_text(size = 9, face = "bold"))
+
+umi.plot
+
+ggsave(plot = umi.plot, filename = "umi-vln-plot-low-quality-cells.png", device = "png", units = "in", width = 2.16, height = 4.5)
+```
+
+So a total of 768 for umi, 65 for gene, and 6681 for mito totaling 7457 cells. There is some overlap.
+
+But there may be some overlap. Which cells are out for any one of these reasons?
+```{r}
+all.aggr$all.out <- (all.aggr$mito.out == TRUE | all.aggr$gene.out == TRUE | all.aggr$umi.out == TRUE)
+sum(all.aggr$all.out)
+```
+So those are the cells to filter out. 
+
+Where are these cells along mito and genes?
+```{r}
+ggplot(data = all.aggr@meta.data, mapping = aes(x = percent.mt, y = nFeature_RNA, color = all.out)) +
+  geom_point(size = 0.1) +
+  scale_x_continuous(trans = "log10") +
+  scale_y_continuous(trans = "log10")
+```
+
+```{r}
+ggplot(data = all.aggr@meta.data, mapping = aes(x = percent.mt, y = nFeature_RNA, color = all.out)) +
+  geom_point(size = 0.1) +
+  scale_x_continuous(trans = "log10") + 
+  scale_y_continuous(trans = "log10") + 
+  facet_wrap(~label.embryo)
+```
+
+How about along gene and umi?
+```{r}
+ggplot(data = all.aggr@meta.data, mapping = aes(x = nCount_RNA, y = nFeature_RNA, color = all.out)) +
+  geom_point(size = 0.1) +
+  scale_x_continuous(trans = "log10") +
+  scale_y_continuous(trans = "log10") +
+  facet_wrap(~all.out)
+```
+
+```{r}
+ggplot(data = all.aggr@meta.data, mapping = aes(x = nCount_RNA, y = nFeature_RNA, color = all.out)) +
+  geom_point(size = 0.1) +
+  scale_x_continuous(trans = "log10") +
+  scale_y_continuous(trans = "log10")
+  facet_wrap(~label.embryo)
+```
+
+Let's remove those cells.
+```{r}
+all.out <- all.aggr$all.out
+save(all.out, file = "/Volumes/all_ssd/20220414-seurat/all-out-all-aggr.Robj")
+```
+
+```{bash}
+scp /Volumes/all_ssd/20220414-seurat/all-out-all-aggr.Robj schea2@hpc3.rcic.uci.edu:/share/crsp/lab/alcalof/schea2/20220414-seurat
+```
+
+```{r}
+high.cells <- all.aggr@meta.data %>% filter(all.out == FALSE)
+head(high.cells)
+```
+
+How many cells per embryo?
+```{r}
+table(high.cells$label.embryo)
+```
+
+Median UMIs per cell per embryo?
+```{r}
+high.cells %>% group_by(label.embryo) %>% summarise(median(nCount_RNA))
+```
+
+Median genes per cell per embryo?
+```{r}
+high.cells %>% group_by(label.embryo) %>% summarise(median(nFeature_RNA))
+```
+
+Median UMIs per cell per stage per genotype?
+```{r}
+high.cells %>% group_by(stage, genotype) %>% summarise(median(nCount_RNA))
+```
+
+Median genes per cell per stage per genotype?
+```{r}
+high.cells %>% group_by(stage, genotype) %>% summarise(median(nFeature_RNA))
+```
+
+Median UMIs per cell per stage per genotype?
+```{r}
+high.cells %>% group_by(stage) %>% summarise(median(nCount_RNA))
+```
+
+Median genes per cell per stage per genotype?
+```{r}
+high.cells %>% group_by(stage) %>% summarise(median(nFeature_RNA))
+```
+
+Median UMIs per cell per stage per genotype?
+```{r}
+high.cells %>% group_by(genotype) %>% summarise(median(nCount_RNA))
+```
+
+Median genes per cell per stage per genotype?
+```{r}
+high.cells %>% group_by(genotype) %>% summarise(median(nFeature_RNA))
+```
+
+Median UMIs per cell?
+```{r}
+median(high.cells$nCount_RNA)
+```
+
+Median genes per cell?
+```{r}
+median(high.cells$nFeature_RNA)
+```
+
+
+

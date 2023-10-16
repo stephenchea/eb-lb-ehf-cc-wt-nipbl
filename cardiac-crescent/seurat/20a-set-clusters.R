@@ -1,0 +1,94 @@
+library(Seurat)
+library(tidyverse)
+library(RColorBrewer)
+library(patchwork)
+
+ident.clust <- c("3", "2", "1")
+
+optim.clust <- list("3" = c("0.025", "0.052"),
+                    "2" = c("0.027", "0.056", "0.081", "0.135"),
+                    "1" = c("0.016", "0.030", "0.051", "0.074", "0.097"))
+
+for (i in 1:length(ident.clust)) {
+    
+    setwd("/share/crsp/lab/alcalof/schea2/20220414-seurat/flox-integr-res-0.0120")
+
+    filename.robj <- paste0("flox-", ident.clust[i], "-neighbors.Robj")
+    load(filename.robj)
+    
+    for (t in 1:length(optim.clust[[i]])) {
+    
+    setwd("/share/crsp/lab/alcalof/schea2/20220414-seurat/flox-integr-res-0.0120")
+
+filename.robj <- paste0("flox-", ident.clust[i], "-cluster-iters/cluster-per-cell-flox-", ident.clust[i], "-res-", optim.clust[[i]][t], ".Robj")
+load(filename.robj)
+
+renamed.ident <- paste0(ident.clust[i], ".", cluster.cluster)
+renamed.ident <- as.character(renamed.ident)
+renamed.ident <- factor(renamed.ident)
+
+flox.clust@active.ident <- renamed.ident
+Idents(flox.clust) <- renamed.ident
+flox.clust$cluster.cluster <- flox.clust@active.ident
+
+name.direct <- paste0("flox-", ident.clust[i], "-res-", optim.clust[[i]][t])
+dir.create(name.direct)
+
+path.direct <- paste0("/share/crsp/lab/alcalof/schea2/20220414-seurat/flox-integr-res-0.0120/", name.direct)
+setwd(path.direct)
+
+cluster.cluster <- flox.clust$cluster.cluster
+
+filename.robj <- paste0("cluster-per-cell-flox-", ident.clust[i], "-res-", optim.clust[[i]][t], ".Robj")
+save(cluster.cluster, file = filename.robj)
+
+clust.umap <- data.frame(flox.clust@reductions$umap@cell.embeddings, flox.clust$stage, flox.clust$label.embryo, flox.clust$cluster.cluster)
+colnames(clust.umap) <- c("umap.1", "umap.2", "stage", "embryo", "cluster.cluster")
+
+filename.robj <- paste0("umap-by-cluster-flox-", ident.clust[i], "-res-", optim.clust[[i]][t], ".Robj")
+save(clust.umap, file = filename.robj)
+
+filename.csv <- paste0("umap-by-cluster-flox-", ident.clust[i], "-res-", optim.clust[[i]][t], ".csv")
+
+#clust.label <- clust.umap %>% group_by(cluster.cluster) %>% summarize(umap.1 = median(umap.1), umap.2 = median(umap.2))
+
+#cluster.umap <- ggplot() +
+#geom_point(data = sample(clust.umap), mapping = aes(x = umap.1, y = umap.2, color = cluster.cluster), shape = 20, stroke = 0, size = 0.5) +
+#geom_text(data = clust.label, mapping = aes(x = umap.1, y = umap.2, label = cluster.cluster), size = 2.3) +
+#labs(title = paste0(ident.clust[i], ", Nipbl Flox/+"), x = "UMAP 1", y = "UMAP 2", color = "Cluster") +
+#guides(color = guide_legend(override.aes = list(size = 2.3))) +
+#theme_classic(base_size = 7) +
+#theme(axis.line = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), plot.title = element_text(hjust = 0.5, size = 7), legend.key.size = unit(7, "pt"))
+
+#filename.png <- paste0("umap-by-cluster-flox-", ident.clust[i], "-res-", optim.clust[[i]][t], ".png")
+#ggsave(plot = cluster.umap, filename = filename.png, device = "png", width = 3.5, height = 2.25, units = "in")
+
+name.assay <- paste0("SCT_", ident.clust[i])
+
+flox.clust <- PrepSCTFindMarkers(flox.clust, assay = name.assay, verbose = TRUE)
+
+diff.genes <- FindAllMarkers(flox.clust, assay = name.assay, logfc.threshold = 0, test.use = "wilcox", slot = "data", min.pct = 0, verbose = TRUE, only.pos = TRUE, max.cells.per.ident = dim(flox.clust)[2]/length(levels(flox.clust$cluster.cluster)), return.thresh = 0.05)
+
+filename.robj <- paste0("diff-genes-flox-", ident.clust[i], "-res-", optim.clust[[i]][t], ".Robj")
+save(diff.genes, file = filename.robj)
+
+filename.csv <- paste0("diff-genes-flox-", ident.clust[i], "-res-", optim.clust[[i]][t], ".csv")
+write.csv(x = diff.genes, file = filename.csv)
+
+#top.markers <- diff.genes %>% group_by(cluster) %>% slice_max(myAUC, n = 79/length(levels(flox.clust$cluster.cluster)))
+
+#name.assay <- paste0("SCT_", ident.clust[i])
+
+#heatmap <- DoHeatmap(flox.clust, assay = name.assay, slot = "scale.data", features = as.vector(top.markers$gene), group.by = "ident", group.bar = TRUE, label = TRUE, size = 2.3, angle = 0, hjust = 0.5, draw.lines = TRUE) +
+#scale_fill_gradientn(colors = rev(brewer.pal(n=5, name = "RdBu")), na.value = "white") +
+#scale_x_discrete(position = "top") +
+#labs(title = paste0(ident.clust[i], ", Nipbl Flox/+"), fill = "Standardized\nLog1p UMI") +
+#guides(color = FALSE) +
+#theme(axis.title = element_text(size = 7), axis.text = element_text(size = 7), plot.title = element_text(hjust = 0.5, size = 7), legend.title = element_text(size = 7), legend.text = element_text(size = 7), legend.key.size = unit(7, "pt"))
+
+#filename.png <- paste0("heatmap-diff-genes-flox-", ident.clust[i], "-res-", optim.clust[[i]][t], ".png")
+#ggsave(plot = heatmap, filename = filename.png, device = "png", units = "in", width = 6.5, height = 9)
+    }
+    
+    remove(flox.clust)
+}

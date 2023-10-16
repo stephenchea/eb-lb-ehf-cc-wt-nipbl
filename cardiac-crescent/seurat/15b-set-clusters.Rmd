@@ -1,0 +1,71 @@
+---
+title: "Generate heatmap"
+output: html_notebook
+---
+
+Download DEGs.
+```{bash}
+scp -r schea2@hpc3.rcic.uci.edu:'/Volumes/all_ssd/20220414-seurat/flox-integr-res-*' /Volumes/all_ssd/20220414-seurat
+```
+
+Load libraries.
+```{r}
+library(Seurat)
+library(tidyverse)
+library(RColorBrewer)
+```
+
+```{r}
+load("/Volumes/all_ssd/20220414-seurat/flox-integr-neighbors.Robj")
+```
+
+Generate heatmaps.
+```{r}
+
+res <- as.character(c("0.0382", "0.0236", "0.0120", "0.0103", "0.0053"))
+
+for (i in 1:length(res)) {
+
+path.direct <- paste0("/Volumes/all_ssd/20220414-seurat/flox-integr-res-", res[i], "/")
+
+filename.robj <- paste0(path.direct, "cluster-per-cell-flox-integr-res-", res[i], ".Robj")
+load(file = filename.robj)
+
+flox.integr@active.ident <- cluster.whole
+flox.integr$cluster.whole <- cluster.whole
+
+filename.robj <- paste0(path.direct, "umap-by-cluster-flox-integr-res-", res[i], ".Robj")
+load(file = filename.robj)
+
+label.whole <- umap.whole %>% group_by(cluster.whole) %>% summarize(umap.1 = median(umap.1), umap.2 = median(umap.2))
+
+cluster.umap <- ggplot() +
+geom_point(data = sample(umap.whole), mapping = aes(x = umap.1, y = umap.2, color = cluster.whole), shape = 20, stroke = 0, size = 0.5) +
+geom_text(data = label.whole, mapping = aes(x = umap.1, y = umap.2, label = cluster.whole), size = 2.3) +
+labs(title = "Nipbl Flox/+", x = "UMAP 1", y = "UMAP 2", color = "Cluster") +
+guides(color = guide_legend(override.aes = list(size = 2.3))) +
+theme_classic(base_size = 7) +
+theme(axis.line = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), plot.title = element_text(hjust = 0.5, size = 7), legend.key.size = unit(7, "pt"))
+
+filename.png <- paste0(path.direct, "umap-by-cluster-flox-integr-res-", res[i], ".png")
+ggsave(plot = cluster.umap, filename = filename.png, device = "png", width = 3.5, height = 2.25, units = "in")
+
+filename.robj <- paste0(path.direct, "diff-genes-flox-integr-res-", res[i], ".Robj")
+load(file = filename.robj)
+
+top.genes <- diff.genes %>% group_by(cluster) %>% slice_head(n = 79/length(levels(flox.integr$cluster.whole)))
+
+cell.names <- rownames(flox.integr@meta.data)
+
+heatmap <- DoHeatmap(flox.integr, cells = sample(cell.names, round(length(cell.names)*0.5), replace = FALSE), assay = "SCT_GENOTYPE", slot = "scale.data", features = as.vector(top.genes$gene), group.by = "ident", group.bar = TRUE, label = TRUE, size = 2.3, angle = 0, hjust = 0.5, draw.lines = TRUE) +
+scale_fill_gradientn(colors = rev(brewer.pal(n=5, name = "RdBu")), na.value = "white") +
+scale_x_discrete(position = "top") +
+labs(title = "Nipbl Flox/+", x = "Cluster", y = "Top Genes", fill = "Standardized\nLog1p UMI") +
+guides(color = FALSE) +
+theme(axis.title = element_text(size = 7), axis.text = element_text(size = 7), plot.title = element_text(hjust = 0.5, size = 7), legend.title = element_text(size = 7), legend.text = element_text(size = 7), legend.key.size = unit(7, "pt"))
+
+filename.png <- paste0(path.direct, "heatmap-diff-genes-flox-integr-res-", res[i], ".png")
+ggsave(plot = heatmap, filename = filename.png, device = "png", units = "in", width = 6.5, height = 9)
+
+}
+```

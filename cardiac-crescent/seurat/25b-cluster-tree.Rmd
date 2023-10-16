@@ -1,0 +1,318 @@
+---
+title: "Generate cluster tree of cluster iterations"
+output: html_notebook
+---
+
+Load required libraries.
+```{r}
+library(tidyverse)
+library(igraph)
+library(ggraph)
+```
+
+Set cluster identities and max cluster iterations.
+```{r}
+ident.clust <- c("2.4", "2.3", "2.2", "2.1")
+optim.clust <- list("2.4" = c("0.030", "0.046", "0.082", "0.189", "0.256", "0.324", "0.352", "0.396", "0.484"))
+```
+
+Generate shannon plot and cluster tree. 
+```{r}
+
+for (e in ident.clust) {
+
+print("generate empty list to store cluster identities for each cell")
+cluster.cell.list <- list()
+
+print("open cluster-per-cell files and store them in list above")
+for (i in optim.clust[[e]]) {
+  file.name <- paste0("/Volumes/all_ssd/20220414-seurat/flox-integr-res-0.0120/flox-2-res-0.081/flox-", e, "-cluster-iters/cluster-per-cell-flox-", e, "-res-", i, ".Robj")
+  load(file.name)
+  cluster.cell.list[[i]] <- as.numeric(cluster.subclust)
+}
+
+print("generate matrix of cluster ids per resolution across columns")
+cluster.cell.matrix <- bind_cols(cluster.cell.list)
+
+print("give appropriate row names according to resolution")
+res <- optim.clust[[e]]
+colnames(cluster.cell.matrix) <- res
+
+print("generate tidy data of node ids and attributes")
+tidy.node <- as.data.frame(unlist(apply(cluster.cell.matrix, 2, table)))
+colnames(tidy.node) <- "node.size"
+tidy.node$node <- row.names(tidy.node)
+tidy.node <- separate(tidy.node, col = node, sep = "\\.(?!.*\\.)" , into = c("resolution", "cluster"), remove = FALSE)
+tidy.node$resolution <- factor(tidy.node$resolution, levels = res)
+tidy.node$cluster <- factor(tidy.node$cluster, levels = 1:max(tidy.node$cluster))
+#shannon value of resolution 1 must be zero by definition
+shannon.per.cluster <- vector()
+shannon.per.cluster <- c(0, 0)
+names(shannon.per.cluster) <- c("1", "2")
+shannon.per.cluster.per.res <- list()
+shannon.per.cluster.per.res[[res[1]]] <- shannon.per.cluster
+#calculate diversity score for each resolutoin beginning at 3
+for (i in 1:(length(res)-1)) {
+  res.subset.cluster.cell.matrix <- as.data.frame(cluster.cell.matrix[, c(i, i+1)])
+  colnames(res.subset.cluster.cell.matrix) <- c("res.low", "res.high")
+  table.res.subset.cluster.cell.matrix <- table(res.subset.cluster.cell.matrix[, "res.high"])
+  
+  shannon.per.cluster <- vector()
+  
+  for (t in names(table.res.subset.cluster.cell.matrix)) {
+    clust.subset.cluster.cell.matrix <- filter(res.subset.cluster.cell.matrix,  res.high == t)
+    clust.subset.cluster.cell.matrix$res.low <- factor(clust.subset.cluster.cell.matrix$res.low)
+    table.clust.subset.cluster.cell.matrix <- table(clust.subset.cluster.cell.matrix$res.low)
+    shannon.per.cluster[t] <- sum(-(table.clust.subset.cluster.cell.matrix/table.res.subset.cluster.cell.matrix[t])*log(table.clust.subset.cluster.cell.matrix/table.res.subset.cluster.cell.matrix[t]))
+  }
+  
+  shannon.per.cluster.per.res[[res[i+1]]] <- shannon.per.cluster
+}
+tidy.node$shannon <- unlist(shannon.per.cluster.per.res)
+tidy.node <- tidy.node[, c("node", "resolution", "cluster", "node.size", "shannon")]
+row.names(tidy.node) <- NULL
+#node dataframe complete
+edge.size.list <- list()
+for (i in 1:(length(res)-1)) {
+  res.subset.cluster.cell.matrix <- as.data.frame(cluster.cell.matrix[, c(i, i+1)])
+  colnames(res.subset.cluster.cell.matrix) <- c("res.low", "res.high")
+  res.subset.cluster.cell.matrix$res.low <- paste0(res[i], ".", res.subset.cluster.cell.matrix$res.low)
+  res.subset.cluster.cell.matrix$res.high <- paste0((res[i+1]), ".", res.subset.cluster.cell.matrix$res.high)
+  res.subset.cluster.cell.matrix <- res.subset.cluster.cell.matrix %>% unite("edge", c(res.low, res.high), sep = "_")
+  edge.size.list[[i+1]] <- as.data.frame(table(res.subset.cluster.cell.matrix))
+}
+tidy.edge <- bind_rows(edge.size.list)
+colnames(tidy.edge) <- c("edge", "edge.size")
+tidy.edge <- separate(tidy.edge, col = "edge", sep = "_", into = c("from.node", "to.node"))
+tidy.edge$proportion <- tidy.edge$edge.size/tidy.node[match(tidy.edge$to.node, tidy.node$node), "node.size"]
+tidy.edge$from.cap <- tidy.node[match(tidy.edge$from.node, tidy.node$node), "node.size"]
+tidy.edge$to.cap <- tidy.node[match(tidy.edge$to.node, tidy.node$node), "node.size"]
+cluster.tree.build <- tidygraph::tbl_graph(nodes = tidy.node, edges = tidy.edge)
+cluster.tree.build <- cluster.tree.build %>%
+  tidygraph::activate("edges") %>%
+  tidygraph::group_by(.data$to) %>%
+  tidygraph::mutate(is_core = .data$proportion == max(.data$proportion)) %>%
+  tidygraph::ungroup()
+
+cluster.tree.layout <- cluster.tree.build %>%
+  tidygraph::activate("edges") %>%
+  tidygraph::filter(.data$is_core) %>%
+  ggraph::create_layout(layout = "tree")
+
+attributes(cluster.tree.layout)$graph <- cluster.tree.build
+
+print("min node size")
+min(tidy.node$node.size)
+
+print("max node size")
+max(tidy.node$node.size)
+
+print("min node shannon")
+min(tidy.node$shannon)
+
+print("max node shannon")
+max(tidy.node$shannon)
+
+print("min edge size")
+min(tidy.edge$edge.size)
+
+print("max edge size")
+max(tidy.edge$edge.size)
+
+print("min edge propor")
+min(tidy.edge$proportion)
+
+print("max edge propor")
+max(tidy.edge$proportion)
+
+title.plot <- paste0("Cluster ", e, ", Nipbl Flox/+")
+
+shannon.plot <- ggplot(data = tidy.node, aes(x = resolution, y = shannon, group = 1)) + 
+    stat_summary(fun.y = "sum", geom = "line") +
+  stat_summary(fun.y = "sum", geom = "point") +
+  scale_x_discrete(labels = 2:10) +
+  labs(title = title.plot, x = "No. of Clusters", y = "Total Shannon Entropy") +
+  theme_classic(base_size = 7) + 
+  theme(plot.title = element_text(hjust = 0.5), legend.position = "right")
+
+print(shannon.plot)
+
+filename.png <- paste0("/Volumes/all_ssd/20220414-seurat/flox-integr-res-0.0120/flox-2-res-0.081/summary-shannon-flox-", e, ".png")
+ggsave(plot = shannon.plot, filename = filename.png, device = "png", units = "in", width = 3.25, height = 1.28)
+
+cluster.tree <- ggraph(cluster.tree.layout, layout = "tree") +
+  geom_edge_link(aes(edge_width = edge.size, edge_alpha = proportion), color = "black") +
+  scale_edge_width_continuous(range = c(0.4, 6.4)) +
+  scale_edge_alpha_continuous(range = c(0.2, 1)) +
+  geom_node_point(aes(size = node.size, color = shannon)) +
+  scale_size_continuous(range = c(2.5, 7.5)) +
+    scale_color_gradient(low = "lightgray", high = "red3") +
+  geom_node_text(aes(label = cluster), color = "black", size = 2) +
+  scale_y_continuous(breaks = sort(unique(cluster.tree.layout$y)), labels = 10:2) +
+  labs(title = title.plot, y = "No. of Clusters", size = "No. of Cells\nin Cluster", color = "Shannon\nEntropy", edge_width = "No. of Cells\nContributing to\nProceeding\nCluster", edge_alpha = "Fraction of\nCells Within\nProceeding\nCluster") +
+  theme_classic(base_size =7) +
+  theme(axis.title.x = element_blank(), axis.text.x = element_blank(),  axis.ticks = element_blank(), axis.line = element_blank(), panel.grid.major.y = element_line(colour = "gray"), plot.title = element_text(hjust = 0.5))
+  #annotate("rect", xmin=-Inf, xmax=Inf, ymin=6.5, ymax=7.5, color="red3", alpha = 0)
+
+print(cluster.tree)
+
+filename.png <- paste0("/Volumes/all_ssd/20220414-seurat/flox-integr-res-0.0120/flox-2-res-0.081/cluster-tree-flox-", e, ".png")
+ggsave(plot = cluster.tree, filename = filename.png, device = "png", units = "in", width = 4.33, height = 6.75)
+
+}
+```
+
+
+Set cluster identities and max cluster iterations.
+```{r}
+ident.clust <- c("2.3", "2.2", "2.1")
+optim.clust <- list("2.3" = c("0.129", "0.181", "0.347", "0.409", "0.473", "0.602", "0.659", "0.725", "0.762", "0.927"),
+                    "2.2" = c("0.046", "0.062", "0.142", "0.182", "0.290", "0.365", "0.384", "0.433", "0.461", "0.565"),
+                    "2.1" = c("0.071", "0.080", "0.096", "0.115", "0.145", "0.395", "0.422", "0.439", "0.485", "0.499"))
+```
+
+Generate shannon plot and cluster tree. 
+```{r}
+
+for (e in ident.clust) {
+
+print("generate empty list to store cluster identities for each cell")
+cluster.cell.list <- list()
+
+print("open cluster-per-cell files and store them in list above")
+for (i in optim.clust[[e]]) {
+  file.name <- paste0("/Volumes/all_ssd/20220414-seurat/flox-integr-res-0.0120/flox-2-res-0.081/flox-", e, "-cluster-iters/cluster-per-cell-flox-", e, "-res-", i, ".Robj")
+  load(file.name)
+  cluster.cell.list[[i]] <- as.numeric(cluster.subclust)
+}
+
+print("generate matrix of cluster ids per resolution across columns")
+cluster.cell.matrix <- bind_cols(cluster.cell.list)
+
+print("give appropriate row names according to resolution")
+res <- optim.clust[[e]]
+colnames(cluster.cell.matrix) <- res
+
+print("generate tidy data of node ids and attributes")
+tidy.node <- as.data.frame(unlist(apply(cluster.cell.matrix, 2, table)))
+colnames(tidy.node) <- "node.size"
+tidy.node$node <- row.names(tidy.node)
+tidy.node <- separate(tidy.node, col = node, sep = "\\.(?!.*\\.)" , into = c("resolution", "cluster"), remove = FALSE)
+tidy.node$resolution <- factor(tidy.node$resolution, levels = res)
+tidy.node$cluster <- factor(tidy.node$cluster, levels = 1:max(tidy.node$cluster))
+#shannon value of resolution 1 must be zero by definition
+shannon.per.cluster <- vector()
+shannon.per.cluster <- c(0)
+names(shannon.per.cluster) <- "1"
+shannon.per.cluster.per.res <- list()
+shannon.per.cluster.per.res[[res[1]]] <- shannon.per.cluster
+#calculate diversity score for each resolutoin beginning at 3
+for (i in 1:(length(res)-1)) {
+  res.subset.cluster.cell.matrix <- as.data.frame(cluster.cell.matrix[, c(i, i+1)])
+  colnames(res.subset.cluster.cell.matrix) <- c("res.low", "res.high")
+  table.res.subset.cluster.cell.matrix <- table(res.subset.cluster.cell.matrix[, "res.high"])
+  
+  shannon.per.cluster <- vector()
+  
+  for (t in names(table.res.subset.cluster.cell.matrix)) {
+    clust.subset.cluster.cell.matrix <- filter(res.subset.cluster.cell.matrix,  res.high == t)
+    clust.subset.cluster.cell.matrix$res.low <- factor(clust.subset.cluster.cell.matrix$res.low)
+    table.clust.subset.cluster.cell.matrix <- table(clust.subset.cluster.cell.matrix$res.low)
+    shannon.per.cluster[t] <- sum(-(table.clust.subset.cluster.cell.matrix/table.res.subset.cluster.cell.matrix[t])*log(table.clust.subset.cluster.cell.matrix/table.res.subset.cluster.cell.matrix[t]))
+  }
+  
+  shannon.per.cluster.per.res[[res[i+1]]] <- shannon.per.cluster
+}
+tidy.node$shannon <- unlist(shannon.per.cluster.per.res)
+tidy.node <- tidy.node[, c("node", "resolution", "cluster", "node.size", "shannon")]
+row.names(tidy.node) <- NULL
+#node dataframe complete
+edge.size.list <- list()
+for (i in 1:(length(res)-1)) {
+  res.subset.cluster.cell.matrix <- as.data.frame(cluster.cell.matrix[, c(i, i+1)])
+  colnames(res.subset.cluster.cell.matrix) <- c("res.low", "res.high")
+  res.subset.cluster.cell.matrix$res.low <- paste0(res[i], ".", res.subset.cluster.cell.matrix$res.low)
+  res.subset.cluster.cell.matrix$res.high <- paste0((res[i+1]), ".", res.subset.cluster.cell.matrix$res.high)
+  res.subset.cluster.cell.matrix <- res.subset.cluster.cell.matrix %>% unite("edge", c(res.low, res.high), sep = "_")
+  edge.size.list[[i+1]] <- as.data.frame(table(res.subset.cluster.cell.matrix))
+}
+tidy.edge <- bind_rows(edge.size.list)
+colnames(tidy.edge) <- c("edge", "edge.size")
+tidy.edge <- separate(tidy.edge, col = "edge", sep = "_", into = c("from.node", "to.node"))
+tidy.edge$proportion <- tidy.edge$edge.size/tidy.node[match(tidy.edge$to.node, tidy.node$node), "node.size"]
+tidy.edge$from.cap <- tidy.node[match(tidy.edge$from.node, tidy.node$node), "node.size"]
+tidy.edge$to.cap <- tidy.node[match(tidy.edge$to.node, tidy.node$node), "node.size"]
+cluster.tree.build <- tidygraph::tbl_graph(nodes = tidy.node, edges = tidy.edge)
+cluster.tree.build <- cluster.tree.build %>%
+  tidygraph::activate("edges") %>%
+  tidygraph::group_by(.data$to) %>%
+  tidygraph::mutate(is_core = .data$proportion == max(.data$proportion)) %>%
+  tidygraph::ungroup()
+
+cluster.tree.layout <- cluster.tree.build %>%
+  tidygraph::activate("edges") %>%
+  tidygraph::filter(.data$is_core) %>%
+  ggraph::create_layout(layout = "tree")
+
+attributes(cluster.tree.layout)$graph <- cluster.tree.build
+
+print("min node size")
+min(tidy.node$node.size)
+
+print("max node size")
+max(tidy.node$node.size)
+
+print("min node shannon")
+min(tidy.node$shannon)
+
+print("max node shannon")
+max(tidy.node$shannon)
+
+print("min edge size")
+min(tidy.edge$edge.size)
+
+print("max edge size")
+max(tidy.edge$edge.size)
+
+print("min edge propor")
+min(tidy.edge$proportion)
+
+print("max edge propor")
+max(tidy.edge$proportion)
+
+title.plot <- paste0("Cluster ", e, ", Nipbl Flox/+")
+
+shannon.plot <- ggplot(data = tidy.node, aes(x = resolution, y = shannon, group = 1)) + 
+    stat_summary(fun.y = "sum", geom = "line") +
+  stat_summary(fun.y = "sum", geom = "point") +
+  scale_x_discrete(labels = 1:10) +
+  labs(title = title.plot, x = "No. of Clusters", y = "Total Shannon Entropy") +
+  theme_classic(base_size = 7) + 
+  theme(plot.title = element_text(hjust = 0.5), legend.position = "right")
+
+print(shannon.plot)
+
+filename.png <- paste0("/Volumes/all_ssd/20220414-seurat/flox-integr-res-0.0120/flox-2-res-0.081/summary-shannon-flox-", e, ".png")
+ggsave(plot = shannon.plot, filename = filename.png, device = "png", units = "in", width = 3.25, height = 1.28)
+
+cluster.tree <- ggraph(cluster.tree.layout, layout = "tree") +
+  geom_edge_link(aes(edge_width = edge.size, edge_alpha = proportion), color = "black") +
+  scale_edge_width_continuous(range = c(0.4, 6.4)) +
+  scale_edge_alpha_continuous(range = c(0.2, 1)) +
+  geom_node_point(aes(size = node.size, color = shannon)) +
+  scale_size_continuous(range = c(2.5, 7.5)) +
+    scale_color_gradient(low = "lightgray", high = "red3") +
+  geom_node_text(aes(label = cluster), color = "black", size = 2) +
+  scale_y_continuous(breaks = sort(unique(cluster.tree.layout$y)), labels = 10:1) +
+  labs(title = title.plot, y = "No. of Clusters", size = "No. of Cells\nin Cluster", color = "Shannon\nEntropy", edge_width = "No. of Cells\nContributing to\nProceeding\nCluster", edge_alpha = "Fraction of\nCells Within\nProceeding\nCluster") +
+  theme_classic(base_size =7) +
+  theme(axis.title.x = element_blank(), axis.text.x = element_blank(),  axis.ticks = element_blank(), axis.line = element_blank(), panel.grid.major.y = element_line(colour = "gray"), plot.title = element_text(hjust = 0.5))
+  #annotate("rect", xmin=-Inf, xmax=Inf, ymin=6.5, ymax=7.5, color="red3", alpha = 0)
+
+print(cluster.tree)
+
+filename.png <- paste0("/Volumes/all_ssd/20220414-seurat/flox-integr-res-0.0120/flox-2-res-0.081/cluster-tree-flox-", e, ".png")
+ggsave(plot = cluster.tree, filename = filename.png, device = "png", units = "in", width = 4.33, height = 6.75)
+
+}
+```

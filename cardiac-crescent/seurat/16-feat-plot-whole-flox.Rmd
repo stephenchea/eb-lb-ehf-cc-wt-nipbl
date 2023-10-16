@@ -1,0 +1,82 @@
+---
+title: "What does the expression of gene markers for each cluster look like?"
+output: html_notebook
+---
+
+Load libraries.
+```{r}
+library(Seurat)
+library(tidyverse)
+library(RColorBrewer)
+```
+
+Load Flox cells.
+```{r}
+load("/Volumes/all_ssd/20220414-seurat/flox-integr-neighbors.Robj")
+```
+
+Load markers.
+```{r}
+load("/Volumes/all_ssd/20220414-seurat/flox-integr-res-0.0120/diff-genes-flox-integr-res-0.0120.Robj")
+head(diff.genes)
+```
+
+Factor gene.
+```{r}
+diff.genes$gene <- factor(diff.genes$gene)
+head(diff.genes)
+```
+
+Grab top genes per cluster. 
+```{r}
+diff.genes %>% group_by(cluster) %>% slice_head(n = 79/length(levels(diff.genes$cluster))*2)
+top.markers <- diff.genes %>% group_by(cluster) %>% slice_head(n = 79/length(levels(diff.genes$cluster))*2) %>% pull(gene)
+top.markers
+```
+
+Pull expression data for cluster.
+```{r}
+#grab expression data for each gene
+expr.umap <- as.data.frame(t(as.data.frame(flox.integr@assays$SCT_GENOTYPE@data[top.markers,])))
+
+#convert column names
+colnames(expr.umap) <- str_replace(top.markers, pattern = "-", replacement = "_")
+
+#add umap embedding and cluster identities
+expr.umap <- cbind(expr.umap, flox.integr@reductions$umap@cell.embeddings)
+
+#add names for each gene as cluster identity
+top.clusters <- diff.genes %>% group_by(cluster) %>% slice_head(n = 79/length(levels(diff.genes$cluster))*2) %>% pull(cluster)
+names(top.clusters) <- colnames(expr.umap)[1:length(top.markers)]
+
+dir.create("/Volumes/all_ssd/20220414-seurat/flox-integr-res-0.0120/feat-plot-diff-genes-flox-integr-res-0.0120")
+```
+
+Generate feature plot.
+```{r}
+loop.count = 0
+
+for (i in colnames(expr.umap)[c(1:length(top.markers))]) {
+  
+loop.count = loop.count + 1
+
+if(loop.count < 10) {
+  string.loop.count <- paste0("00", loop.count)
+} else if(loop.count >= 10 & loop.count < 100) {
+    string.loop.count <- paste0("0", loop.count)
+} else if(loop.count >= 100) {
+  string.loop.count <- loop.count
+}
+
+feat.plot <- ggplot(data = sample(expr.umap), mapping = aes(x = UMAP_1, y = UMAP_2)) +
+         geom_point(mapping = aes_string(color = i), shape = 20, stroke = 0, size = 0.5) +
+        scale_color_gradient(low = "grey", high = "red") +
+    labs(title = str_replace(i, pattern = "_", replacement = "-"), subtitle = "Whole Embryo, Nipbl Flox/+", x = "UMAP 1", y = "UMAP 2", color = "Norm\nUMI") +
+  theme_classic(base_size = 7) +
+  theme(plot.title = element_text(hjust = 0.5), plot.subtitle = element_text(hjust = 0.5), axis.line = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), legend.key.size = unit(7, "pt"))
+
+filename.png <- paste0("/Volumes/all_ssd/20220414-seurat/flox-integr-res-0.0120/feat-plot-diff-genes-flox-integr-res-0.0120/", top.clusters[i], "-", string.loop.count, "-", str_replace(i, pattern = "_", replacement = "-"), "-feat-plot-diff-genes-flox-integr-res-0.0120.png")
+ggsave(plot = feat.plot, filename = filename.png, device = "png", unit = "in", width = 3.5, height = 2.25)
+
+}
+```

@@ -1,0 +1,167 @@
+---
+title: "Find variable genes"
+output: html_notebook
+---
+
+Download variable genes.
+```{bash}
+scp schea2@hpc3.rcic.uci.edu:/share/crsp/lab/alcalof/schea2/20220414-seurat/var-genes-flox-aggr-sctrans.Robj .
+```
+
+Load variable genes.
+```{r}
+load("var-genes-flox-aggr-sctrans.Robj")
+```
+
+How many variable genes per embryo?
+```{r}
+print("number of variable geness per embryo")
+lapply(var.genes, FUN = length)
+```
+
+
+
+Find unique genes among all embryos.
+```{r}
+uniq.genes <- unique(c(var.genes[[1]],
+var.genes[[2]],
+var.genes[[3]],
+var.genes[[4]],
+var.genes[[5]],
+var.genes[[6]],
+var.genes[[7]],
+var.genes[[8]],
+var.genes[[9]],
+var.genes[[10]],
+var.genes[[11]],
+var.genes[[12]],
+var.genes[[13]]
+))
+
+print("number of unique genes among all embryos")
+length(uniq.genes)
+```
+
+Count how many times each gene is counted as variable among all embryos. Rank from most common to least common. 
+```{r}
+print("counting how many times each gene occurs")
+count.gene <- list()
+for (e in uniq.genes) {
+    for(r in names(var.genes)) {
+        count.gene[[e]][[r]]<- e %in% var.genes[[r]]
+    }
+}
+
+print("ranking unique variable genes")
+count.rank <- lapply(X = count.gene, FUN = unlist)
+count.rank <- lapply(X = count.rank, FUN = sum)
+count.rank <- sort(unlist(count.rank), decreasing = TRUE)
+
+print("table of rankings")
+print(table(count.rank))
+```
+
+Find unique genes among late bud embryos.
+```{r}
+lb.uniq.genes <- unique(c(var.genes[[1]],
+var.genes[[2]],
+var.genes[[3]],
+var.genes[[4]],
+var.genes[[5]]
+))
+
+print("number of unique genes among late bud embryos")
+length(lb.uniq.genes)
+```
+
+Count how many times each gene is counted as variable among late bud embryos. Rank from most common to least common. 
+```{r}
+print("counting how many times each gene occurs")
+lb.count.gene <- list()
+for (e in lb.uniq.genes) {
+    for(r in names(var.genes)[1:5]) {
+        lb.count.gene[[e]][[r]]<- e %in% var.genes[[r]]
+    }
+}
+
+print("ranking unique variable genes")
+lb.count.rank <- lapply(X = lb.count.gene, FUN = unlist)
+lb.count.rank <- lapply(X = lb.count.rank, FUN = sum)
+lb.count.rank <- sort(unlist(lb.count.rank), decreasing = TRUE)
+
+print("table of rankings")
+print(table(lb.count.rank))
+```
+
+Grab variable genes common to all late bud embryos.
+```{r}
+lb.var.genes <- names(lb.count.rank[lb.count.rank >= 5])
+head(lb.var.genes)
+```
+
+Find unique genes among cardiac crescent embryos.
+```{r}
+cc.uniq.genes <- unique(c(var.genes[[6]],
+var.genes[[7]],
+var.genes[[8]],
+var.genes[[9]],
+var.genes[[10]],
+var.genes[[11]],
+var.genes[[12]],
+var.genes[[13]]
+))
+
+print("number of unique genes among cardiac crescent embryos")
+length(cc.uniq.genes)
+```
+
+Count how many times each gene is counted as variable among cardiac crescent embryos. Rank from most common to least common. 
+```{r}
+print("counting how many times each gene occurs")
+cc.count.gene <- list()
+for (e in cc.uniq.genes) {
+    for(r in names(var.genes)[6:13]) {
+        cc.count.gene[[e]][[r]]<- e %in% var.genes[[r]]
+    }
+}
+
+print("ranking unique variable genes")
+cc.count.rank <- lapply(X = cc.count.gene, FUN = unlist)
+cc.count.rank <- lapply(X = cc.count.rank, FUN = sum)
+cc.count.rank <- sort(unlist(cc.count.rank), decreasing = TRUE)
+
+print("table of rankings")
+print(table(cc.count.rank))
+```
+
+Grab variable genes common to all cardiac crescent embryos.
+```{r}
+cc.var.genes <- names(cc.count.rank[cc.count.rank >= 8])
+head(cc.var.genes)
+```
+
+Grab variable genes common to both late bud and cardiac crescent embryos.
+```{r}
+all.var.genes <- unique(c(lb.var.genes, cc.var.genes))
+head(all.var.genes)
+length(all.var.genes)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

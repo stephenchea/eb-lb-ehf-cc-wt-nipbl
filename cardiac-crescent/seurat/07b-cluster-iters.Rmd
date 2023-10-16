@@ -1,0 +1,43 @@
+---
+title: "Generate UMAP for each cluster iteration"
+output: html_notebook
+---
+
+```{bash}
+scp -r schea2@hpc3.rcic.uci.edu:'/share/crsp/lab/alcalof/schea2/20220414-seurat/all-aggr-cluster-iters' /Volumes/all_ssd/20220414-seurat
+```
+
+```{r}
+library(Seurat)
+library(tidyverse)
+```
+
+```{r}
+load(file = "/Volumes/all_ssd/20220414-seurat/umap-by-embryo-all-aggr.Robj")
+```
+
+```{r}
+for (i in seq(from = 0, to = 0.3, by = 0.0001)) {
+
+filename.robj <- paste0("/Volumes/all_ssd/20220414-seurat/all-aggr-cluster-iters/cluster-per-cell-all-aggr-res-", sprintf(fmt = "%.4f", i), ".Robj")
+load(file = filename.robj)
+
+whole.umap$cluster <- all.aggr.active.ident
+
+whole.label <- whole.umap %>% group_by(cluster) %>% summarize(umap.1 = median(umap.1), umap.2 = median(umap.2))
+
+cluster.umap <- ggplot() +
+geom_point(data = sample(whole.umap), mapping = aes(x = umap.1, y = umap.2, color = cluster), shape = 20, stroke = 0, size = 0.5) +
+geom_text(data = whole.label, mapping = aes(x = umap.1, y = umap.2, label = cluster), size = 2.3) +
+guides(color = guide_legend(override.aes = list(size = 2.3))) +
+labs(x = "UMAP 1", y = "UMAP 2", color = "Cluster") +
+theme_classic(base_size = 7) +
+theme(axis.line = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), plot.title = element_text(hjust = 0.5), legend.key.size = unit(7, "pt"))
+
+filename.png <- paste0("/Volumes/all_ssd/20220414-seurat/all-aggr-cluster-iters/umap-by-cluster-all-aggr-res-", sprintf(fmt = "%.4f", i), ".png")
+ggsave(plot = cluster.umap, filename = filename.png, device = "png", width = 3.5, height = 2.25, units = "in")
+
+}
+
+```
+

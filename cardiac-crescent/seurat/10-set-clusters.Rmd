@@ -1,0 +1,95 @@
+---
+title: "Set number of clusters"
+output: html_notebook
+---
+
+Load required libraries.
+```{r}
+library(tidyverse)
+```
+
+Load UMAP.
+```{r}
+load("/Volumes/all_ssd/20220414-seurat/umap-by-embryo-all-aggr.Robj")
+head(whole.umap)
+```
+
+Set cluster identities.
+```{r}
+load("/Volumes/all_ssd/20220414-seurat/all-aggr-cluster-iters/cluster-per-cell-all-aggr-res-0.0264.Robj")
+whole.umap$cluster <- all.aggr.active.ident
+```
+
+Generate positions and labels for each cluster.
+```{r}
+whole.label <- whole.umap %>% group_by(cluster) %>% summarize(umap.1 = median(umap.1), umap.2 = median(umap.2))
+```
+
+```{r}
+dir.create('/Volumes/all_ssd/20220414-seurat/all-aggr-res-0.0264')
+```
+
+Plot UMAP by cluster.
+```{r}
+cluster.umap <- ggplot() +
+geom_point(data = sample(whole.umap), mapping = aes(x = umap.1, y = umap.2, color = cluster), shape = 20, stroke = 0, size = 0.5) +
+    geom_text(data = whole.label, mapping = aes(x = umap.1, y = umap.2, label = cluster), size = 2.3) +
+labs(x = "UMAP 1", y = "UMAP 2", color = "Cluster") +
+    guides(color = guide_legend(override.aes = list(size = 2.3))) +
+theme_classic(base_size = 7) +
+    theme(axis.line = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), legend.key.size = unit(7, "pt"), plot.title = element_text(hjust = 0.5))
+
+cluster.umap
+
+ggsave(plot = cluster.umap, filename = "/Volumes/all_ssd/20220414-seurat/all-aggr-res-0.0264/umap-by-cluster-all-aggr-res-0.0264.png", device = "png", units = "in", width = 3.5, height = 2.25)
+```
+
+Plot UMAP by cluster.
+```{r}
+cluster.umap <- ggplot() +
+geom_point(data = sample(whole.umap), mapping = aes(x = umap.1, y = umap.2, color = genotype), shape = 20, stroke = 0, size = 0.33) +
+  scale_color_manual(values = c("royalblue", "indianred")) +
+labs(x = "UMAP 1", y = "UMAP 2", color = "Genotype") +
+    guides(color = guide_legend(override.aes = list(size = 2.3))) +
+theme_classic(base_size = 7) +
+    theme(axis.line = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), legend.key.size = unit(7, "pt"), plot.title = element_text(hjust = 0.5))
+
+cluster.umap
+
+ggsave(plot = cluster.umap, filename = "/Volumes/all_ssd/20220414-seurat/all-aggr-res-0.0264/umap-by-genotype-all-aggr-res-0.0264.png", device = "png", units = "in", width = 3.5, height = 2.25)
+```
+
+Load libraries.
+```{r}
+library(scales)
+```
+
+Get colors for each cluster. We need 10 colors.
+```{r}
+show_col(hue_pal()(6))
+hue_pal()(6)
+```
+
+By genotype.
+```{r}
+genotype.umap <- ggplot() +
+geom_point(data = sample(whole.umap), mapping = aes(x = umap.1, y = umap.2, color = genotype), shape = 20, size = 0.33, stroke = 0, alpha = 1) +
+    scale_color_manual(values = c("royalblue", "indianred")) +
+      geom_density_2d(data = whole.umap %>% filter(cluster == 3), mapping = aes(x = umap.1, y = umap.2), color = "#00BA38", linetype = "solid", size = 0.5, contour_var = "count", breaks = 32) +
+        geom_density_2d(data = whole.umap %>% filter(cluster == 4), mapping = aes(x = umap.1, y = umap.2), color = "#00BFC4", linetype = "solid", size = 0.5, contour_var = "count", breaks = 64) +
+      geom_label(data = whole.label, mapping = aes(x = umap.1, y = umap.2, label = cluster, fill = cluster), size = 2.3) +
+    guides(color = guide_legend(override.aes = list(size = 1.75))) +
+labs(x = "UMAP 1", y = "UMAP 2", color = "Genotype") +
+    guides(fill = "none") +
+theme_classic(base_size = 7) +
+    theme(axis.line = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), legend.key.size = unit(7, "pt"), plot.title = element_text(hjust = 0.5))
+
+genotype.umap
+
+ggsave(plot = genotype.umap, filename = "/Volumes/all_ssd/20220414-seurat/all-aggr-res-0.0264/umap-density-by-genotype-all-aggr-res-0.0264.png", device = "png", units = "in", width = 3.5, height = 2.25)
+```
+
+Upload object onto hpc.
+```{bash}
+scp -r /Volumes/all_ssd/20220414-seurat/all-aggr-res-0.0264 schea2@hpc3.rcic.uci.edu:/share/crsp/lab/alcalof/schea2/20220414-seurat
+```
