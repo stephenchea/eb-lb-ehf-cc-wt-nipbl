@@ -1,0 +1,98 @@
+---
+title: "Where do all the clusters map in the whole embryo?"
+output: html_notebook
+---
+
+```{r}
+library(Seurat)
+library(tidyverse)
+library(RColorBrewer)
+```
+
+Load umap whole.
+```{r}
+load("/Volumes/Bud_SSD/20210505-seurat/flox-integr-clust-5/umap-by-cluster-flox-integr-clust-5.Robj")
+whole.umap$wildtype.whole <- as.character(as.vector(whole.umap$wildtype.whole))
+head(whole.umap)
+table(whole.umap$wildtype.whole)
+```
+
+Load umap cluster.
+```{r}
+load("/Volumes/Bud_SSD/20210505-seurat/flox-integr-clust-5/flox-W1-clust-2/umap-by-cluster-flox-W1-clust-2-4.Robj")
+w1.umap <- clust.umap
+table(w1.umap$wildtype.clust)
+
+load("/Volumes/Bud_SSD/20210505-seurat/flox-integr-clust-5/flox-W2-clust-2/umap-by-cluster-flox-W2-clust-2-8.Robj")
+w2.umap <- clust.umap
+table(w2.umap$wildtype.clust)
+
+load("/Volumes/Bud_SSD/20210505-seurat/flox-integr-clust-5/flox-W3-clust-2/umap-by-cluster-flox-W3-clust-2.Robj")
+w3.umap <- clust.umap
+table(w3.umap$wildtype.clust)
+
+load("/Volumes/Bud_SSD/20210505-seurat/flox-integr-clust-5/flox-W4-clust-2/umap-by-cluster-flox-W4-clust-2.Robj")
+w4.umap <- clust.umap
+table(w4.umap$wildtype.clust)
+```
+
+Recode W2 cluster into subclusters.
+```{r}
+whole.umap[as.vector(rownames(w1.umap %>% filter(wildtype.clust == "W1.1.1"))), "wildtype.whole"] <- "W1.1.1"
+whole.umap[as.vector(rownames(w1.umap %>% filter(wildtype.clust == "W1.1.2"))), "wildtype.whole"] <- "W1.1.2"
+whole.umap[as.vector(rownames(w1.umap %>% filter(wildtype.clust == "W1.1.3"))), "wildtype.whole"] <- "W1.1.3"
+whole.umap[as.vector(rownames(w1.umap %>% filter(wildtype.clust == "W1.2"))), "wildtype.whole"] <- "W1.2"
+
+whole.umap[as.vector(rownames(w2.umap %>% filter(wildtype.clust == "W2.1.1.1"))), "wildtype.whole"] <- "W2.1.1.1"
+whole.umap[as.vector(rownames(w2.umap %>% filter(wildtype.clust == "W2.1.1.2"))), "wildtype.whole"] <- "W2.1.1.2"
+whole.umap[as.vector(rownames(w2.umap %>% filter(wildtype.clust == "W2.1.1.3"))), "wildtype.whole"] <- "W2.1.1.3"
+whole.umap[as.vector(rownames(w2.umap %>% filter(wildtype.clust == "W2.1.2.1"))), "wildtype.whole"] <- "W2.1.2.1"
+whole.umap[as.vector(rownames(w2.umap %>% filter(wildtype.clust == "W2.1.2.2"))), "wildtype.whole"] <- "W2.1.2.2"
+whole.umap[as.vector(rownames(w2.umap %>% filter(wildtype.clust == "W2.1.2.3"))), "wildtype.whole"] <- "W2.1.2.3"
+whole.umap[as.vector(rownames(w2.umap %>% filter(wildtype.clust == "W2.2.1"))), "wildtype.whole"] <- "W2.2.1"
+whole.umap[as.vector(rownames(w2.umap %>% filter(wildtype.clust == "W2.2.2"))), "wildtype.whole"] <- "W2.2.2"
+
+whole.umap[as.vector(rownames(w3.umap %>% filter(wildtype.clust == "W3.1"))), "wildtype.whole"] <- "W3.1"
+whole.umap[as.vector(rownames(w3.umap %>% filter(wildtype.clust == "W3.2"))), "wildtype.whole"] <- "W3.2"
+
+whole.umap[as.vector(rownames(w4.umap %>% filter(wildtype.clust == "W4.1"))), "wildtype.whole"] <- "W4.1"
+whole.umap[as.vector(rownames(w4.umap %>% filter(wildtype.clust == "W4.2"))), "wildtype.whole"] <- "W4.2"
+
+whole.umap$wildtype.whole <- factor(whole.umap$wildtype.whole, levels = c("W1.1.1", "W1.1.2", "W1.1.3", "W1.2", "W2.1.1.1", "W2.1.1.2", "W2.1.1.3", "W2.1.2.1", "W2.1.2.2", "W2.1.2.3", "W2.2.1", "W2.2.2", "W3.1", "W3.2", "W4.1", "W4.2", "W5"))
+
+table(whole.umap$wildtype.whole)
+```
+
+```{r}
+save(whole.umap, file = "/Volumes/Bud_SSD/20210505-seurat/flox-integr-clust-5/umap-by-cluster-flox-integr-clust-5-17.Robj")
+```
+
+Generate label umap.
+```{r}
+whole.label <- whole.umap %>% group_by(wildtype.whole) %>% summarize(umap.1 = median(umap.1), umap.2 = median(umap.2))
+```
+
+Generate cluster umap.
+```{r}
+cluster.umap <- ggplot() +
+geom_point(data = sample(whole.umap), mapping = aes(x = umap.1, y = umap.2, color = wildtype.whole), size = 0.1) +
+geom_text(data = whole.label, mapping = aes(x = umap.1, y = umap.2, label = wildtype.whole), size = 3.5) +
+labs(title = "Whole, Nipbl Flox/+", x = "UMAP 1", y = "UMAP 2", color = "Cluster") +
+  guides(color = guide_legend(override.aes = list(size = 2.3))) +
+theme_classic(base_size = 7) +
+theme(axis.line = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), plot.title = element_text(hjust = 0.5, size = 7), legend.key.size = unit(7, "pt"))
+
+cluster.umap
+```
+
+```{r}
+ggsave(plot = cluster.umap, filename = "/Volumes/Bud_SSD/20210505-seurat/flox-integr-clust-5/umap-by-cluster-flox-integr-clust-5-17.png", device = "png", width = 6.5, height = 4.5, units = "in")
+```
+
+Upload files onto hpc3.
+```{bash}
+scp /Volumes/Bud_SSD/20210505-seurat/flox-integr-clust-5/umap-by-cluster-flox-integr-clust-5-17.png schea2@hpc3.rcic.uci.edu:/dfs6/pub/schea2/20210505-seurat/flox-integr-clust-5
+
+scp /Volumes/Bud_SSD/20210505-seurat/flox-integr-clust-5/umap-by-cluster-flox-integr-clust-5-17.Robj schea2@hpc3.rcic.uci.edu:/dfs6/pub/schea2/20210505-seurat/flox-integr-clust-5
+
+```

@@ -1,0 +1,88 @@
+---
+title: "Where do all the clusters map in W2?"
+output: html_notebook
+---
+
+Load libraries.
+```{r}
+library(Seurat)
+library(tidyverse)
+library(RColorBrewer)
+```
+
+Load umap of cluster.
+```{r}
+load("/Volumes/Bud_SSD/20210505-seurat/flox-integr-clust-5/flox-W2-clust-3/umap-by-cluster-flox-W2-clust-3.Robj")
+w2.umap <- clust.umap
+w2.umap$wildtype.clust <- as.character(w2.umap$wildtype.clust)
+head(w2.umap)
+
+table(w2.umap$wildtype.clust)
+```
+
+Load umap of subclusters.
+```{r}
+load("/Volumes/Bud_SSD/20210505-seurat/flox-integr-clust-5/flox-W2-clust-3/flox-W2_1-clust-4/umap-by-cluster-flox-W2_1-clust-4.Robj")
+w2.1.umap <- clust.umap
+table(w2.1.umap$wildtype.subclust)
+
+load("/Volumes/Bud_SSD/20210505-seurat/flox-integr-clust-5/flox-W2-clust-3/flox-W2_2-clust-2/umap-by-cluster-flox-W2_2-clust-2.Robj")
+w2.2.umap <- clust.umap
+table(w2.2.umap$wildtype.subclust)
+
+load("/Volumes/Bud_SSD/20210505-seurat/flox-integr-clust-5/flox-W2-clust-3/flox-W2_3-clust-2/umap-by-cluster-flox-W2_3-clust-2.Robj")
+w2.3.umap <- clust.umap
+table(w2.3.umap$wildtype.subclust)
+```
+
+Recode W2 cluster into subclusters.
+```{r}
+w2.umap[as.vector(rownames(w2.1.umap %>% filter(wildtype.subclust == "W2.1.1"))), "wildtype.clust"] <- "W2.1.1"
+w2.umap[as.vector(rownames(w2.1.umap %>% filter(wildtype.subclust == "W2.1.2"))), "wildtype.clust"] <- "W2.1.2"
+w2.umap[as.vector(rownames(w2.1.umap %>% filter(wildtype.subclust == "W2.1.3"))), "wildtype.clust"] <- "W2.1.3"
+w2.umap[as.vector(rownames(w2.1.umap %>% filter(wildtype.subclust == "W2.1.4"))), "wildtype.clust"] <- "W2.1.4"
+
+w2.umap[as.vector(rownames(w2.2.umap %>% filter(wildtype.subclust == "W2.2.1"))), "wildtype.clust"] <- "W2.2.1"
+w2.umap[as.vector(rownames(w2.2.umap %>% filter(wildtype.subclust == "W2.2.2"))), "wildtype.clust"] <- "W2.2.2"
+
+w2.umap[as.vector(rownames(w2.3.umap %>% filter(wildtype.subclust == "W2.3.1"))), "wildtype.clust"] <- "W2.3.1"
+w2.umap[as.vector(rownames(w2.3.umap %>% filter(wildtype.subclust == "W2.3.2"))), "wildtype.clust"] <- "W2.3.2"
+
+w2.umap$wildtype.clust <- factor(w2.umap$wildtype.clust, levels = c("W2.1.1", "W2.1.2", "W2.1.3", "W2.1.4", "W2.2.1", "W2.2.2", "W2.3.1", "W2.3.2"))
+
+table(w2.umap$wildtype.clust)
+```
+
+```{r}
+clust.umap <- w2.umap
+save(clust.umap, file = "/Volumes/Bud_SSD/20210505-seurat/flox-integr-clust-5/flox-W2-clust-3/umap-by-cluster-flox-W2-clust-3-8.Robj")
+```
+
+Generate label umap.
+```{r}
+umap.label <- clust.umap %>% group_by(wildtype.clust) %>% summarize(umap.1 = median(umap.1), umap.2 = median(umap.2))
+```
+
+Generate cluster umap.
+```{r}
+cluster.umap <- ggplot() +
+geom_point(data = sample(clust.umap), mapping = aes(x = umap.1, y = umap.2, color = wildtype.clust), size = 0.1) +
+geom_text(data = umap.label, mapping = aes(x = umap.1, y = umap.2, label = wildtype.clust), size = 3.5) +
+labs(title = "W2, Nipbl Flox/+", x = "UMAP 1", y = "UMAP 2", color = "Cluster") +
+  guides(color = guide_legend(override.aes = list(size = 2.3))) +
+theme_classic(base_size = 7) +
+theme(axis.line = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), plot.title = element_text(hjust = 0.5, size = 7), legend.key.size = unit(7, "pt"))
+
+cluster.umap
+```
+
+```{r}
+ggsave(plot = cluster.umap, filename = "/Volumes/Bud_SSD/20210505-seurat/flox-integr-clust-5/flox-W2-clust-3/umap-by-cluster-flox-W2-clust-3-6.png", device = "png", width = 6.5, height = 4.5, units = "in")
+```
+
+Upload files onto hpc3.
+```{bash}
+scp /Volumes/Bud_SSD/20210505-seurat/flox-integr-clust-5/flox-W2-clust-3/umap-by-cluster-flox-W2-clust-3-6.png schea2@hpc3.rcic.uci.edu:/dfs6/pub/schea2/20210505-seurat/flox-integr-clust-5/flox-W2-clust-3
+
+scp /Volumes/Bud_SSD/20210505-seurat/flox-integr-clust-5/flox-W2-clust-3/umap-by-cluster-flox-W2-clust-3-6.Robj schea2@hpc3.rcic.uci.edu:/dfs6/pub/schea2/20210505-seurat/flox-integr-clust-5/flox-W2-clust-3
+```

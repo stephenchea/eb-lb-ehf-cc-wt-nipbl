@@ -1,0 +1,48 @@
+---
+title: "Pseuobulk"
+output: html_notebook
+---
+
+Load libraries.
+```{r}
+library(Seurat)
+library(tidyverse)
+library(ggsignif)
+library(Rmisc)
+library(scales)
+```
+
+```{r}
+load("/Volumes/Bud_SSD/20210505-seurat/all-aggr-sctrans.Robj")
+```
+
+```{r}
+Idents(all.aggr) <- all.aggr$embryo.id
+
+embryo.list <- SplitObject(all.aggr, split.by = "ident")
+
+umi.embryo <- lapply(X = embryo.list, FUN = function(x) rowSums(x@assays$SCT_ALL@counts))
+```
+
+```{r}
+umi.data <- data.frame(umi.embryo[[1]], umi.embryo[[2]], umi.embryo[[3]], umi.embryo[[4]], umi.embryo[[5]], umi.embryo[[6]], umi.embryo[[7]], umi.embryo[[8]], umi.embryo[[9]], umi.embryo[[10]], umi.embryo[[11]])
+```
+
+```{r}
+colnames(umi.data) <- names(umi.embryo)
+
+cell.embryo <- table(all.aggr$embryo.id)
+norm.factor <- cell.embryo / min(cell.embryo)
+
+norm.umi <- as.data.frame(apply(X = umi.data, MARGIN = 1, FUN = function(x) x/norm.factor))
+```
+
+```{r}
+norm.umi$genotype <- c("Flox", "Flox", "Flox", "Flox", "Flox", "FIN", "FIN", "FIN", "FIN", "FIN", "FIN")
+norm.umi$genotype <- factor(norm.umi$genotype, levels = c("Flox", "FIN"))
+```
+
+```{r}
+save(norm.umi, file = "/Volumes/Bud_SSD/20210505-seurat/norm-umi-per-embryo.Robj")
+```
+

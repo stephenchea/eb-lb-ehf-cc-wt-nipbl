@@ -1,0 +1,28 @@
+---
+title: "Perform marker gene analysis"
+output: html_notebook
+---
+
+Load required libraries.
+```{r}
+library(Seurat)
+library(tidyverse)
+```
+
+Load Seurat object.
+```{r}
+load("/Volumes/Bud_SSD/20210505-seurat/all-aggr-clust-5/all-aggr-clust-5.Robj")
+```
+
+Find marker genes. 
+```{r}
+marker.genes <- FindAllMarkers(all.aggr, assay = "SCT_ALL", slot = "data", only.pos = TRUE, test.use = "roc", min.pct = 0.4, min.diff.pct = -Inf,  logfc.threshold = 0, return.thresh = 0.5, verbose = TRUE)
+```
+
+Save marker genes.
+```{r}
+save(marker.genes, file = "/Volumes/Bud_SSD/20210505-seurat/all-aggr-clust-5/marker-genes-flox-integr-clust-5.Robj")
+
+write.csv(x = marker.genes, file = "/Volumes/Bud_SSD/20210505-seurat/all-aggr-clust-5/marker-genes-flox-integr-clust-5.csv")
+```
+

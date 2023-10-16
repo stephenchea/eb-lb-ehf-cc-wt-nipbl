@@ -1,0 +1,60 @@
+---
+title: "How many pc's explain majority of the variance?"
+output: html_notebook
+---
+
+```{bash}
+scp schea2@hpc3.rcic.uci.edu:/dfs6/pub/schea2/20210505-seurat/stdev-pc-all-aggr.Robj /Volumes/Bud_SSD/20210505-seurat
+```
+
+Load libraries.
+```{r}
+library(tidyverse)
+```
+
+Load standard deviation.
+```{r}
+load("/Volumes/Bud_SSD/20210505-seurat/stdev-pc-all-aggr.Robj")
+head(stdev.pca)
+```
+
+Calculate variance explained.
+```{r}
+var.exp <- stdev.pca^2/sum(stdev.pca^2)
+```
+
+Plot variance explained.
+```{r}
+plot(var.exp)
+```
+
+Plot histogram. Needs a log transformation.
+```{r}
+ggplot() +
+  geom_histogram(mapping = aes(var.exp)) +
+  geom_vline(xintercept = median(var.exp), color = "blue") +
+  geom_vline(xintercept = median(var.exp) + mad(var.exp)*3, color = "red") +
+  scale_x_continuous(trans = "log10")
+```
+
+How many principal components have mad greater than 3?
+```{r}
+d.var.exp <- var.exp - median(var.exp)
+sum(d.var.exp > mad(var.exp)*3)
+```
+
+Sc tranform can handle more. So lower threshold to 2. 
+```{r}
+ggplot() +
+  geom_histogram(mapping = aes(var.exp)) +
+  geom_vline(xintercept = median(var.exp), color = "blue") +
+  geom_vline(xintercept = median(var.exp) + mad(var.exp)*2, color = "red") +
+  scale_x_continuous(trans = "log10")
+```
+
+How many principal components have mad greater than 2?
+```{r}
+d.var.exp <- var.exp - median(var.exp)
+sum(d.var.exp > mad(var.exp)*2)
+```
+

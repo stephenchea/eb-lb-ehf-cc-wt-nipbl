@@ -1,0 +1,163 @@
+---
+title: "Set number of clusters"
+output: html_notebook
+---
+
+Load required libraries.
+```{r}
+library(Seurat)
+library(tidyverse)
+```
+
+Load Seurat object.
+```{r}
+load("/Volumes/Bud_SSD/20210505-seurat/all-aggr-neighbors.Robj")
+```
+
+We settled on 5 clusters.
+```{r}
+load("/Volumes/Bud_SSD/20210505-seurat/all-aggr-cluster-iters/cluster-per-cell-all-aggr-clust-5.Robj")
+all.aggr$cluster <- all.aggr.active.ident
+Idents(all.aggr) <- all.aggr.active.ident
+```
+
+```{r}
+tsne.whole <- data.frame(all.aggr@reductions$tsne@cell.embeddings, all.aggr$embryo.id, all.aggr$genotype, all.aggr$cluster)
+colnames(tsne.whole) <- c("tsne.1", "tsne.2", "embryo.id", "genotype", "cluster")
+head(tsne.whole)
+```
+
+```{r}
+tsne.whole$genotype <- factor(x = tsne.whole$genotype, levels = c("Flox", "FIN"))
+```
+
+Generate positions and labels for each cluster.
+```{r}
+tsne.label <- tsne.whole %>% group_by(cluster) %>% summarize(tsne.1 = median(tsne.1), tsne.2 = median(tsne.2))
+```
+
+By genotype.
+```{r}
+genotype.tsne <- ggplot() +
+geom_point(data = sample(tsne.whole), mapping = aes(x = tsne.1, y = tsne.2, color = genotype), shape = 20, size = 1, stroke = 0, alpha = 1) +
+    scale_color_manual(values = c("royalblue", "indianred"), labels = c("Nipbl Flox/+", "Nipbl FIN/+")) +
+    guides(color = guide_legend(override.aes = list(size = 3.5))) +
+labs(title = "Whole, Nipbl Flox/+ & FIN/+", x = "t-SNE 1", y = "t-SNE 2", color = "Genotype") +
+theme_classic(base_size = 7) +
+    theme(axis.line = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), legend.key.size = unit(7, "pt"), plot.title = element_text(hjust = 0.5))
+
+genotype.tsne
+
+ggsave(plot = genotype.tsne, filename = "/Volumes/Bud_SSD/20210505-seurat/tsne-by-genotype-all-aggr.png", device = "png", units = "in", width = 6.5, height = 4.5)
+```
+
+```{r}
+library(scales)
+```
+
+Get colors for each cluster. We need 11 colors.
+```{r}
+show_col(hue_pal()(12))
+hue_pal()(12)
+```
+
+See within genotype.
+```{r}
+flox.tsne <- ggplot() +
+geom_point(data = sample(tsne.whole %>% filter(genotype == "Flox")), mapping = aes(x = tsne.1, y = tsne.2, color = embryo.id), shape = 20, size = 1, stroke = 0) +
+    scale_color_manual(labels = c("EP1", "EP2", "EP3", "EP4", "EP5"), values = hue_pal()(12)[c(1, 7, 3, 9, 5)]) +
+labs(title = "Whole, Nipbl Flox/+", x = "t-SNE 1", y = "t-SNE 2", color = "Embryo\nPair") +
+    guides(color = guide_legend(override.aes = list(size = 3.5))) +
+theme_classic(base_size = 7) +
+    theme(axis.line = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), legend.key.size = unit(7, "pt"), plot.title = element_text(hjust = 0.5))
+
+flox.tsne
+
+ggsave(plot = flox.tsne, filename = "/Volumes/Bud_SSD/20210505-seurat/tsne-by-embryo-flox-all-aggr.png", device = "png", units = "in", width = 6.5, height = 4.5)
+```
+
+```{r}
+fin.tsne <- ggplot() +
+geom_point(data = sample(tsne.whole %>% filter(genotype == "FIN")), mapping = aes(x = tsne.1, y = tsne.2, color = embryo.id), shape = 20, size = 1, stroke = 0) +
+    scale_color_manual(labels = c("EP6", "EP7", "EP8", "EP9", "EP10", "EP11"), values = hue_pal()(12)[c(2, 8, 4, 10, 6, 12)]) +
+labs(title = "Whole, Nipbl FIN/+", x = "t-SNE 1", y = "t-SNE 2", color = "Embryo\nPair") +
+    guides(color = guide_legend(override.aes = list(size = 3.5))) +
+theme_classic(base_size = 7) +
+    theme(axis.line = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), legend.key.size = unit(7, "pt"), plot.title = element_text(hjust = 0.5))
+
+fin.tsne
+
+ggsave(plot = fin.tsne, filename = "/Volumes/Bud_SSD/20210505-seurat/tsne-by-embryo-fin-all-aggr.png", device = "png", units = "in", width = 6.5, height = 4.5)
+```
+
+Make new directory.
+```{r}
+dir.create('/Volumes/Bud_SSD/20210505-seurat/all-aggr-clust-5')
+```
+
+
+tsne by cluster
+```{r}
+cluster.tsne <- ggplot() +
+geom_point(data = sample(tsne.whole), mapping = aes(x = tsne.1, y = tsne.2, color = cluster), shape = 20, size = 1, stroke = 0) +
+    geom_text(data = tsne.label, mapping = aes(x = tsne.1, y = tsne.2, label = cluster), size = 3.5) +
+labs(title = "Whole, Nipbl Flox/+ & FIN/+", x = "t-SNE 1", y = "t-SNE 2", color = "Cluster") +
+    guides(color = guide_legend(override.aes = list(size = 3.5))) +
+theme_classic(base_size = 7) +
+    theme(axis.line = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), legend.key.size = unit(7, "pt"), plot.title = element_text(hjust = 0.5))
+
+cluster.tsne
+
+ggsave(plot = cluster.tsne, filename = "/Volumes/Bud_SSD/20210505-seurat/all-aggr-clust-5/tsne-by-cluster-all-aggr-clust-5.png", device = "png", units = "in", width = 6.5, height = 4.5)
+```
+
+
+Get colors for each cluster. We need 11 colors.
+```{r}
+show_col(hue_pal()(5))
+hue_pal()(5)
+```
+
+By genotype.
+```{r}
+genotype.tsne <- ggplot() +
+geom_point(data = sample(tsne.whole), mapping = aes(x = tsne.1, y = tsne.2, color = genotype), shape = 20, size = 1, stroke = 0, alpha = 1) +
+    scale_color_manual(values = c("royalblue", "indianred"), labels = c("Nipbl Flox/+", "Nipbl FIN/+")) +
+      geom_density_2d(data = tsne.whole %>% filter(cluster == 2), mapping = aes(x = tsne.1, y = tsne.2), color = "#A3A500", linetype = "solid", size = 1, contour_var = "count", breaks = 1) +
+      geom_density_2d(data = tsne.whole %>% filter(cluster == 3), mapping = aes(x = tsne.1, y = tsne.2), color = "#00BF7D", linetype = "solid", size = 1, contour_var = "count", breaks = 1) +
+      geom_label(data = tsne.label, mapping = aes(x = tsne.1, y = tsne.2, label = cluster, fill = cluster), size = 3.5) +
+    guides(color = guide_legend(override.aes = list(size = 3.5))) +
+labs(title = "Whole, Nipbl Flox/+ & FIN/+", x = "t-SNE 1", y = "t-SNE 2", color = "Genotype") +
+    guides(fill = "none") +
+theme_classic(base_size = 7) +
+    theme(axis.line = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), legend.key.size = unit(7, "pt"), plot.title = element_text(hjust = 0.5))
+
+genotype.tsne
+
+ggsave(plot = genotype.tsne, filename = "/Volumes/Bud_SSD/20210505-seurat/all-aggr-clust-5/tsne-by-genotype-all-aggr-clust-5.png", device = "png", units = "in", width = 6.5, height = 4.5)
+```
+
+Upload object onto hpc.
+```{bash}
+scp /Volumes/Bud_SSD/20210505-seurat/tsne-by-genotype-all-aggr.png schea2@hpc3.rcic.uci.edu:/dfs6/pub/schea2/20210505-seurat
+
+scp /Volumes/Bud_SSD/20210505-seurat/tsne-by-embryo-flox-all-aggr.png schea2@hpc3.rcic.uci.edu:/dfs6/pub/schea2/20210505-seurat
+
+scp /Volumes/Bud_SSD/20210505-seurat/tsne-by-embryo-fin-all-aggr.png schea2@hpc3.rcic.uci.edu:/dfs6/pub/schea2/20210505-seurat
+
+scp /Volumes/Bud_SSD/20210505-seurat/all-aggr-clust-5/tsne-by-cluster-all-aggr-clust-5.png schea2@hpc3.rcic.uci.edu:/dfs6/pub/schea2/20210505-seurat/all-aggr-clust-5
+
+scp /Volumes/Bud_SSD/20210505-seurat/all-aggr-clust-5/tsne-by-genotype-all-aggr-clust-5.png schea2@hpc3.rcic.uci.edu:/dfs6/pub/schea2/20210505-seurat/all-aggr-clust-5
+```
+
+```{r}
+save(object = all.aggr, file = "/Volumes/Bud_SSD/20210505-seurat/all-aggr-clust-5/all-aggr-clust-5.Robj")
+```
+
+Upload object onto hpc.
+```{bash}
+scp /Volumes/Bud_SSD/20210505-seurat/all-aggr-clust-5/all-aggr-clust-5.Robj schea2@hpc3.rcic.uci.edu:/dfs6/pub/schea2/20210505-seurat/all-aggr-clust-5
+```
+
+
+

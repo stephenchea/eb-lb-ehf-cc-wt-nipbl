@@ -1,0 +1,66 @@
+---
+title: "Filter out genes that are not expressed in all embryos"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+```{r}
+library(Seurat)
+```
+
+```{r}
+load("/Volumes/Bud_SSD/20210505-seurat/all-aggr-seurat.Robj")
+```
+
+```{r}
+head(all.aggr@meta.data)
+```
+
+```{r}
+all.aggr$embryo.id <- factor(all.aggr$embryo.id, levels = c("AVJ4-56", "AYQ8-11", "AYR4-57", "BBH6-17", "AXL7-21", "ATU6-45", "ATU6-69", "AYR4-22", "AZK2-45", "BBH6-59", "AXL7-69"))
+```
+
+```{r}
+embryo.aggr <- SplitObject(object = all.aggr, split.by = "embryo.id")
+```
+
+```{r}
+umi.embryo <- lapply(X = embryo.aggr, FUN = function(x) rowSums(x@assays$RNA@counts))
+umi.embryo <- data.frame(umi.embryo[[1]], umi.embryo[[2]], umi.embryo[[3]], umi.embryo[[4]], umi.embryo[[5]], umi.embryo[[6]], umi.embryo[[7]], umi.embryo[[8]], umi.embryo[[9]], umi.embryo[[10]], umi.embryo[[11]])
+```
+
+```{r}
+head(umi.embryo)
+```
+
+```{r}
+dim(umi.embryo)
+
+d.genes = apply(umi.embryo, 1, function(row) all(row !=0 ))
+sum(d.genes)
+```
+
+```{r}
+all.aggr <- subset(all.aggr, features = rownames(all.aggr)[d.genes])
+dim(all.aggr)
+```
+
+save
+```{r}
+save(all.aggr, file = "/Volumes/Bud_SSD/20210505-seurat/all-aggr-seurat.Robj")
+```
+
+```{r}
+load("/Volumes/Bud_SSD/20210505-seurat/all-aggr-seurat.Robj")
+```
+
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file). 
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
