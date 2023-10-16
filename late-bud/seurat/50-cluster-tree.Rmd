@@ -1,0 +1,183 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+Download cluster iterations.
+```{bash}
+scp -r schea2@hpc3.rcic.uci.edu:/dfs6/pub/schea2/20210505-seurat/fin-integr-clust-6/fin-M*-cluster-iters /Volumes/Bud_SSD/20210505-seurat/fin-integr-clust-6
+```
+
+Load required libraries.
+```{r}
+library(tidyverse)
+library(igraph)
+library(ggraph)
+```
+
+Set cluster identities and max cluster iterations.
+```{r}
+ident.clust <- c("M1", "M2", "M4")
+max.iters <- c(10, 10, 10)
+```
+
+Generate shannon plot and cluster tree. 
+```{r}
+
+for (e in 1:length(ident.clust)) {
+  
+  print("setting max iterations")
+max.res <- max.iters[e]
+
+print("generate empty list to store cluster identities for each cell")
+cluster.cell.list <- list()
+
+print("open cluster-per-cell files and store them in list above")
+for (i in 2:max.res) {
+  file.name <- paste0("/Volumes/Bud_SSD/20210505-seurat/fin-integr-clust-6/fin-", ident.clust[e], "-cluster-iters/cluster-per-cell-fin-", ident.clust[e], "-clust-", i, ".Robj")
+  load(file.name)
+  cluster.cell.list[[i-1]] <- as.numeric(fin.clust.active.ident)
+}
+
+#generate matrix of cluster ids per resolution across columns
+cluster.cell.matrix <- bind_cols(cluster.cell.list)
+
+#give appropriate row names according to resolution
+res <- 2:max.res
+colnames(cluster.cell.matrix) <- res
+# generation of cluster.cell.matrix done
+
+#generate tidy data of node ids and attributes
+tidy.node <- as.data.frame(unlist(apply(cluster.cell.matrix, 2, table)))
+colnames(tidy.node) <- "node.size"
+tidy.node$node <- row.names(tidy.node)
+tidy.node <- separate(tidy.node, col = node, into = c("resolution", "cluster"), remove = FALSE)
+tidy.node$resolution <- factor(tidy.node$resolution, levels = 2:max.res)
+tidy.node$cluster <- factor(tidy.node$cluster, levels = 1:max.res)
+
+#shannon value of resolution 2 must be zero by definition
+shannon.per.cluster <- vector()
+shannon.per.cluster <- c(0, 0)
+names(shannon.per.cluster) <- c("1", "2")
+shannon.per.cluster.per.res <- list()
+shannon.per.cluster.per.res[[res[1]]] <- shannon.per.cluster
+#shannon.per.res <- vector()
+
+#calculate diversity score for each resolutoin beginning at 3
+for (i in 1:(max.res-2)) {
+  res.subset.cluster.cell.matrix <- as.data.frame(cluster.cell.matrix[, c(i, i+1)])
+  colnames(res.subset.cluster.cell.matrix) <- c("res.low", "res.high")
+  table.res.subset.cluster.cell.matrix <- table(res.subset.cluster.cell.matrix[, "res.high"])
+  
+  shannon.per.cluster <- vector()
+  
+  for (t in names(table.res.subset.cluster.cell.matrix)) {
+    clust.subset.cluster.cell.matrix <- filter(res.subset.cluster.cell.matrix,  res.high == t)
+    clust.subset.cluster.cell.matrix$res.low <- factor(clust.subset.cluster.cell.matrix$res.low)
+    table.clust.subset.cluster.cell.matrix <- table(clust.subset.cluster.cell.matrix$res.low)
+    shannon.per.cluster[t] <- sum(-(table.clust.subset.cluster.cell.matrix/table.res.subset.cluster.cell.matrix[t])*log(table.clust.subset.cluster.cell.matrix/table.res.subset.cluster.cell.matrix[t]))
+  }
+  
+  shannon.per.cluster.per.res[[res[i+1]]] <- shannon.per.cluster
+#  shannon.per.res[[res[i+1]]] <- Norm(shannon.per.cluster, p = Inf)
+}
+
+tidy.node$shannon <- unlist(shannon.per.cluster.per.res)
+tidy.node <- tidy.node[, c("node", "resolution", "cluster", "node.size", "shannon")]
+row.names(tidy.node) <- NULL
+#node dataframe complete
+
+edge.size.list <- list()
+
+for (i in 1:(max.res-2)) {
+  res.subset.cluster.cell.matrix <- as.data.frame(cluster.cell.matrix[, c(i, i+1)])
+  colnames(res.subset.cluster.cell.matrix) <- c("res.low", "res.high")
+  res.subset.cluster.cell.matrix$res.low <- paste0(i+1, ".", res.subset.cluster.cell.matrix$res.low)
+  res.subset.cluster.cell.matrix$res.high <- paste0((i+2), ".", res.subset.cluster.cell.matrix$res.high)
+  res.subset.cluster.cell.matrix <- res.subset.cluster.cell.matrix %>% unite("edge", c(res.low, res.high), sep = "_")
+  edge.size.list[[i+1]] <- as.data.frame(table(res.subset.cluster.cell.matrix))
+}
+
+tidy.edge <- bind_rows(edge.size.list)
+colnames(tidy.edge) <- c("edge", "edge.size")
+tidy.edge <- separate(tidy.edge, col = "edge", sep = "_", into = c("from.node", "to.node"))
+tidy.edge$proportion <- tidy.edge$edge.size/tidy.node[match(tidy.edge$to.node, tidy.node$node), "node.size"]
+tidy.edge$from.cap <- tidy.node[match(tidy.edge$from.node, tidy.node$node), "node.size"]
+tidy.edge$to.cap <- tidy.node[match(tidy.edge$to.node, tidy.node$node), "node.size"]
+
+cluster.tree.build <- tidygraph::tbl_graph(nodes = tidy.node, edges = tidy.edge)
+
+cluster.tree.build <- cluster.tree.build %>%
+  tidygraph::activate("edges") %>%
+  tidygraph::group_by(.data$to) %>%
+  tidygraph::mutate(is_core = .data$proportion == max(.data$proportion)) %>%
+  tidygraph::ungroup()
+
+cluster.tree.layout <- cluster.tree.build %>%
+  tidygraph::activate("edges") %>%
+  tidygraph::filter(.data$is_core) %>%
+  ggraph::create_layout(layout = "tree")
+
+attributes(cluster.tree.layout)$graph <- cluster.tree.build
+
+print("min node size")
+min(tidy.node$node.size)
+
+print("max node size")
+max(tidy.node$node.size)
+
+print("min node shannon")
+min(tidy.node$shannon)
+
+print("max node shannon")
+max(tidy.node$shannon)
+
+print("min edge size")
+min(tidy.edge$edge.size)
+
+print("max edge size")
+max(tidy.edge$edge.size)
+
+print("min edge propor")
+min(tidy.edge$proportion)
+
+print("max edge propor")
+max(tidy.edge$proportion)
+
+title.plot <- paste0(ident.clust[e], ", Nipbl FIN/+")
+
+shannon.plot <- ggplot(data = tidy.node, aes(x = resolution, y = shannon, group = 1)) + 
+    stat_summary(fun.y = "sum", geom = "line") +
+  stat_summary(fun.y = "sum", geom = "point") +
+  labs(title = title.plot, x = "No. of Clusters", y = "Total Shannon Entropy") +
+  theme_classic(base_size = 7) + 
+  theme(plot.title = element_text(hjust = 0.5), legend.position = "right")
+
+
+print(shannon.plot)
+
+filename.png <- paste0("/Volumes/Bud_SSD/20210505-seurat/fin-integr-clust-6/summary-shannon-fin-", ident.clust[e], ".png")
+ggsave(plot = shannon.plot, filename = filename.png, device = "png", units = "in", width = 6.5, height = 4.5)
+
+cluster.tree <- ggraph(cluster.tree.layout, layout = "tree") +
+  geom_edge_link(aes(edge_width = edge.size, edge_alpha = proportion), color = "black") +
+  scale_edge_width_continuous(range = c(0.4, 6.4)) +
+  scale_edge_alpha_continuous(range = c(0.2, 1)) +
+  geom_node_point(aes(size = node.size, color = shannon)) +
+  scale_size_continuous(range = c(2.5, 7.5)) +
+    scale_color_gradient(low = "lightgray", high = "red3") +
+  geom_node_text(aes(label = cluster), color = "black", size = 2) +
+  scale_y_continuous(breaks = sort(unique(cluster.tree.layout$y)), labels = rev(res)) +
+  labs(title = title.plot, y = "No. of Clusters", size = "No. of Cells\nin Cluster", color = "Shannon\nEntropy", edge_width = "No. of Cells\nContributing to\nProceeding\nCluster", edge_alpha = "Fraction of\nCells Within\nProceeding\nCluster") +
+  theme_classic(base_size =7) +
+  theme(axis.title.x = element_blank(), axis.text.x = element_blank(),  axis.ticks = element_blank(), axis.line = element_blank(), panel.grid.major.y = element_line(colour = "gray"), plot.title = element_text(hjust = 0.5))
+  #annotate("rect", xmin=-Inf, xmax=Inf, ymin=6.5, ymax=7.5, color="red3", alpha = 0)
+
+print(cluster.tree)
+
+filename.png <- paste0("/Volumes/Bud_SSD/20210505-seurat/fin-integr-clust-6/cluster-tree-fin-", ident.clust[e], ".png")
+ggsave(plot = cluster.tree, filename = filename.png, device = "png", units = "in", width = 6.5, height = 9)
+
+}
+```
+

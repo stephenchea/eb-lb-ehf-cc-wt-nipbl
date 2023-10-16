@@ -1,0 +1,71 @@
+---
+title: "Where do all the clusters map in M1?"
+output: html_notebook
+---
+
+Load libraries.
+```{r}
+library(Seurat)
+library(tidyverse)
+library(RColorBrewer)
+```
+
+Load umap of cluster.
+```{r}
+load("/Volumes/Bud_SSD/20210505-seurat/fin-integr-clust-6/fin-M1-clust-2/umap-by-cluster-fin-M1-clust-2.Robj")
+m1.umap <- clust.umap
+m1.umap$mutant.clust <- as.character(m1.umap$mutant.clust)
+head(m1.umap)
+
+table(m1.umap$mutant.clust)
+```
+
+Load umap of subclusters.
+```{r}
+load("/Volumes/Bud_SSD/20210505-seurat/fin-integr-clust-6/fin-M1-clust-2/fin-M1_2-clust-2/umap-by-cluster-fin-M1_2-clust-2.Robj")
+m1.2.umap <- subclust.umap
+```
+
+Recode W2 cluster into subclusters.
+```{r}
+m1.umap[as.vector(rownames(m1.2.umap %>% filter(mutant.subclust == "M1.2.1"))), "mutant.clust"] <- "M1.2.1"
+m1.umap[as.vector(rownames(m1.2.umap %>% filter(mutant.subclust == "M1.2.2"))), "mutant.clust"] <- "M1.2.2"
+
+m1.umap$mutant.clust <- factor(m1.umap$mutant.clust, levels = c("M1.1", "M1.2.1", "M1.2.2"))
+
+table(m1.umap$mutant.clust)
+```
+
+```{r}
+clust.umap <- m1.umap
+save(clust.umap, file = "/Volumes/Bud_SSD/20210505-seurat/fin-integr-clust-6/fin-M1-clust-2/umap-by-cluster-fin-M1-clust-2-3.Robj")
+```
+
+Generate label umap.
+```{r}
+umap.label <- clust.umap %>% group_by(mutant.clust) %>% summarize(umap.1 = median(umap.1), umap.2 = median(umap.2))
+```
+
+Generate cluster umap.
+```{r}
+cluster.umap <- ggplot() +
+geom_point(data = sample(clust.umap), mapping = aes(x = umap.1, y = umap.2, color = mutant.clust), size = 0.1) +
+geom_text(data = umap.label, mapping = aes(x = umap.1, y = umap.2, label = mutant.clust), size = 3.5) +
+labs(title = "M1, Nipbl FIN/+", x = "UMAP 1", y = "UMAP 2", color = "Cluster") +
+  guides(color = guide_legend(override.aes = list(size = 2.3))) +
+theme_classic(base_size = 7) +
+theme(axis.line = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), plot.title = element_text(hjust = 0.5, size = 7), legend.key.size = unit(7, "pt"))
+
+cluster.umap
+```
+
+```{r}
+ggsave(plot = cluster.umap, filename = "/Volumes/Bud_SSD/20210505-seurat/fin-integr-clust-6/fin-M1-clust-2/umap-by-cluster-fin-M1-clust-2-3.png", device = "png", width = 6.5, height = 4.5, units = "in")
+```
+
+Upload files onto hpc3.
+```{bash}
+scp /Volumes/Bud_SSD/20210505-seurat/fin-integr-clust-6/fin-M1-clust-2/umap-by-cluster-fin-M1-clust-2-3.png schea2@hpc3.rcic.uci.edu:/dfs6/pub/schea2/20210505-seurat/fin-integr-clust-6/fin-M1-clust-2
+
+scp /Volumes/Bud_SSD/20210505-seurat/fin-integr-clust-6/fin-M1-clust-2/umap-by-cluster-fin-M1-clust-2-3.Robj schea2@hpc3.rcic.uci.edu:/dfs6/pub/schea2/20210505-seurat/fin-integr-clust-6/fin-M1-clust-2
+```

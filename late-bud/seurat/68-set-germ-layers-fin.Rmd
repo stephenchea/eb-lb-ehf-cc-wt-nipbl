@@ -1,0 +1,76 @@
+---
+title: "Which clusters belong to which germ layers?"
+output: html_notebook
+---
+
+```{r}
+library(Seurat)
+library(tidyverse)
+library(RColorBrewer)
+```
+
+Load umap whole.
+```{r}
+load("/Volumes/Bud_SSD/20210505-seurat/fin-integr-projected-flox-integr-clust-5-18/projected-umap-by-wildtype-fin-integr-projected-flox-integr-clust-5-18.Robj")
+head(whole.umap)
+table(whole.umap$wildtype.whole)
+```
+
+Set germ layers.
+```{r}
+whole.umap$germ.whole <- recode(whole.umap$wildtype.whole, 
+                                "W1.1.1" = "ECT", 
+                                "W1.1.2" = "ECT", 
+                                "W1.1.3" = "ECT", 
+                                "W1.2" = "MES", 
+                                "W2.1.1.1" = "MES", 
+                                "W2.1.1.2" = "MES", 
+                                "W2.1.1.3" = "MES", 
+                                "W2.1.2.1" = "MES", 
+                                "W2.1.2.2" = "MES", 
+                                "W2.1.2.3" = "MES", 
+                                "W2.2.1" = "MES",  
+                                "W2.2.2" = "MES",  
+                                "W3.1" = "END", 
+                                "W3.2" = "END", 
+                                "W3.3" = "ECT", 
+                                "W4.1" = "MES", 
+                                "W4.2" = "MES", 
+                                "W5" = "MES")
+
+whole.umap$germ.whole <- factor(whole.umap$germ.whole, levels = c("ECT", "MES", "END"))
+```
+
+```{r}
+save(whole.umap, file = "/Volumes/Bud_SSD/20210505-seurat/fin-integr-projected-flox-integr-clust-5-18/projected-umap-by-germ-layer-fin-integr-projected-flox-integr-clust-5-18.Robj")
+```
+
+Generate label umap.
+```{r}
+whole.label <- whole.umap %>% group_by(germ.whole) %>% summarize(umap.1 = median(umap.1), umap.2 = median(umap.2))
+```
+
+Generate cluster umap.
+```{r}
+cluster.umap <- ggplot() +
+geom_point(data = whole.umap, mapping = aes(x = umap.1, y = umap.2, color = germ.whole), size = 0.1) +
+geom_text(data = whole.label, mapping = aes(x = umap.1, y = umap.2, label = germ.whole), size = 3.5) +
+labs(title = "Whole, Nipbl FIN/+", x = "UMAP 1", y = "UMAP 2", color = "Germ\nLayer") +
+guides(color = guide_legend(override.aes = list(size = 2.3))) +
+theme_classic(base_size = 7) +
+theme(axis.line = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), plot.title = element_text(hjust = 0.5, size = 7), legend.key.size = unit(7, "pt"))
+
+cluster.umap
+```
+
+```{r}
+ggsave(plot = cluster.umap, filename = "/Volumes/Bud_SSD/20210505-seurat/fin-integr-projected-flox-integr-clust-5-18/projected-umap-by-germ-layer-fin-integr-projected-flox-integr-clust-5-18.png", device = "png", width = 6.5, height = 4.5, units = "in")
+```
+
+Upload files onto hpc3.
+```{bash}
+scp /Volumes/Bud_SSD/20210505-seurat/fin-integr-projected-flox-integr-clust-5-18/projected-umap-by-germ-layer-fin-integr-projected-flox-integr-clust-5-18.png schea2@hpc3.rcic.uci.edu:/dfs6/pub/schea2/20210505-seurat/fin-integr-projected-flox-integr-clust-5-18
+
+scp /Volumes/Bud_SSD/20210505-seurat/fin-integr-projected-flox-integr-clust-5-18/projected-umap-by-germ-layer-fin-integr-projected-flox-integr-clust-5-18.Robj schea2@hpc3.rcic.uci.edu:/dfs6/pub/schea2/20210505-seurat/fin-integr-projected-flox-integr-clust-5-18
+
+```

@@ -1,0 +1,83 @@
+---
+title: "What does the expression of gene markers for each cluster look like?"
+output: html_notebook
+---
+
+Load libraries.
+```{r}
+library(Seurat)
+library(tidyverse)
+library(RColorBrewer)
+```
+
+Load Flox cells.
+```{r}
+load("/Volumes/Bud_SSD/20210505-seurat/flox-integr-clust-5/flox-MES-clust-11/flox-MES-umap.Robj")
+```
+
+Set cell identities. 
+```{r}
+Idents(flox.germ) <- flox.germ$wildtype.whole
+```
+
+Load markers.
+```{r}
+load("/Volumes/Bud_SSD/20210505-seurat/flox-integr-clust-5/flox-MES-clust-11/marker-genes-flox-MES-clust-11.Robj")
+```
+
+Factor gene. 
+```{r}
+marker.genes$gene <- factor(marker.genes$gene)
+```
+
+Grab top twenty genes per cluster. 
+```{r}
+marker.genes %>% group_by(cluster) %>% slice_max(myAUC, n = 71/(11/2))
+target.genes <- marker.genes %>% group_by(cluster) %>% slice_max(myAUC, n = 71/(11/2)) %>% pull(gene)
+```
+
+
+Pull expression data for cluster.
+```{r}
+#grab expression data for each gene
+expr.umap <- as.data.frame(t(as.data.frame(flox.germ@assays$SCT_GENOTYPE@data[target.genes, ])))
+
+colnames(expr.umap) <- str_replace_all(colnames(expr.umap), pattern = "-", replacement = ".")
+
+expr.umap <- bind_cols(expr.umap, as.data.frame(flox.germ@reductions$umap@cell.embeddings))
+#change all dashes to periods
+
+#add names for each gene as cluster identity
+target.clusters <- marker.genes %>% group_by(cluster) %>% slice_max(myAUC, n = 71/(11/2)) %>% pull(cluster)
+names(target.clusters) <- colnames(expr.umap)[1:length(target.genes)]
+```
+
+```{r}
+dir.create("/Volumes/Bud_SSD/20210505-seurat/flox-integr-clust-5/flox-MES-clust-11/feat-plot-top-markers")
+
+loop.count = 0
+
+for (i in 1:length(target.genes)) {
+  
+loop.count = loop.count + 1
+
+if(loop.count < 10) {
+  string.loop.count <- paste0("00", loop.count)
+} else if(loop.count >= 10 & loop.count < 100) {
+    string.loop.count <- paste0("0", loop.count)
+} else if(loop.count >= 100) {
+  string.loop.count <- loop.count
+}
+
+feat.plot <- ggplot(data = expr.umap %>% arrange(colnames(expr.umap)[i]), mapping = aes(x = UMAP_1, y = UMAP_2)) +
+         geom_point(mapping = aes_string(color = colnames(expr.umap)[i]), size = 0.1) +
+        scale_color_gradient(low = "grey", high = "red", na.value = "grey") +
+    labs(title = target.genes[i], subtitle = "Mesoderm, Nipbl Flox/+", x = "UMAP 1", y = "UMAP 2", color = "Norm\nUMI") +
+  theme_classic(base_size = 7) +
+  theme(plot.title = element_text(hjust = 0.5), plot.subtitle = element_text(hjust = 0.5), axis.line = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), legend.key.size = unit(7, "pt"))
+
+filename.png <- paste0("/Volumes/Bud_SSD/20210505-seurat/flox-integr-clust-5/flox-MES-clust-11/feat-plot-top-markers/", target.clusters[i], "-", string.loop.count, "-", target.genes[i], "-feat-plot-flox-mes.png")
+ggsave(plot = feat.plot, filename = filename.png, device = "png", unit = "in", width = 6.5, height = 4.5)
+
+}
+```

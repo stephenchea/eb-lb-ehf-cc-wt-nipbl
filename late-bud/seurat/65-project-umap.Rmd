@@ -1,0 +1,198 @@
+---
+title: "How similar or different are FIN clusters from Flox clusters?"
+output: html_notebook
+---
+
+Load libraries.
+```{r}
+library(Seurat)
+library(tidyverse)
+```
+
+Load Flox cells. 
+```{r}
+load("/Volumes/Bud_SSD/20210505-seurat/flox-integr-neighbors.Robj")
+```
+
+Load number of pc's used for Flox cells.
+```{r}
+load("/Volumes/Bud_SSD/20210505-seurat/sig-pc-flox-integr.Robj")
+```
+
+Load cluster identities for Flox cells.
+```{r}
+load("/Volumes/Bud_SSD/20210505-seurat/flox-integr-clust-5/umap-by-cluster-flox-integr-clust-5-18.Robj")
+```
+
+Set cluster identities for Flox cells.
+```{r}
+flox.integr$wildtype.whole <- whole.umap$wildtype.whole
+Idents(flox.integr) <- whole.umap$wildtype.whole
+```
+
+Load FIN cells. 
+```{r}
+load("/Volumes/Bud_SSD/20210505-seurat/fin-integr-neighbors.Robj")
+```
+
+Load cluster identities for FIN cells.
+```{r}
+load("/Volumes/Bud_SSD/20210505-seurat/fin-integr-clust-6/umap-by-cluster-fin-integr-clust-6-17.Robj")
+```
+
+Set cluster identities for FIN cells.
+```{r}
+fin.integr$mutant.whole <- whole.umap$mutant.whole
+Idents(fin.integr) <- whole.umap$mutant.whole
+```
+
+Find anchors between Flox and FIN cells. 
+```{r}
+fin.anchors <- FindTransferAnchors(reference = flox.integr, query = fin.integr, normalization.method = "SCT", reference.assay = "integrated", query.assay = "integrated",  reduction = "pcaproject", project.query = FALSE, reference.reduction = "pca", npcs = NULL, dims = 1:pc.number, max.features = length(rownames(flox.integr))*0.1)
+```
+
+Correct embeddings of FIN cells to Flox cells.
+```{r}
+fin.integr <- IntegrateEmbeddings(anchorset = fin.anchors, new.reduction.name = "ref.pca", reference = flox.integr, query = fin.integr)
+```
+
+Project FIN cells onto UMAP of Flox cells.
+```{r}
+fin.integr <- ProjectUMAP(query = fin.integr, query.dims = 1:pc.number, reference = flox.integr, reference.dims = 1:pc.number,
+    query.reduction = "ref.pca", reference.reduction = "pca", reduction.model = "umap")
+```
+
+Plot FIN cells.
+```{r}
+DimPlot(fin.integr, reduction = "ref.umap", label = TRUE, label.size = 3,
+    repel = TRUE)
+```
+
+Grab projected umap.
+```{r}
+whole.umap <- data.frame(fin.integr@reductions$ref.umap@cell.embeddings, fin.integr$embryo.id, fin.integr@active.ident)
+colnames(whole.umap) <- c("umap.1", "umap.2", "embryo.id", "mutant.whole")
+head(whole.umap)
+```
+
+Factor embryo.
+```{r}
+whole.umap$embryo.id <- factor(whole.umap$embryo.id, levels = c("ATU6-45", "ATU6-69", "AYR4-22", "AZK2-45", "BBH6-59", "AXL7-69"))
+```
+
+Make new directory.
+```{r}
+dir.create("/Volumes/Bud_SSD/20210505-seurat/fin-integr-projected-flox-integr-clust-5-18")
+```
+
+Save umap.
+```{r}
+save(whole.umap, file = "/Volumes/Bud_SSD/20210505-seurat/fin-integr-projected-flox-integr-clust-5-18/projected-umap-by-mutant-fin-integr-projected-flox-integr-clust-5-18.Robj")
+```
+
+Generate labels.
+```{r}
+whole.label <- whole.umap %>% group_by(mutant.whole) %>% summarize(umap.1 = median(umap.1), umap.2 = median(umap.2))
+```
+
+Plot.
+```{r}
+cluster.umap <- ggplot() +
+geom_point(data = sample(whole.umap), mapping = aes(x = umap.1, y = umap.2, color = mutant.whole), size = 0.1) +
+geom_text(data = whole.label, mapping = aes(x = umap.1, y = umap.2, label = mutant.whole), size = 3.5) +
+labs(title = "Whole, Nipbl FIN/+", x = "UMAP 1", y = "UMAP 2", color = "Cluster") +
+  guides(color = guide_legend(override.aes = list(size = 2.3))) +
+theme_classic(base_size = 7) +
+theme(axis.line = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), plot.title = element_text(hjust = 0.5, size = 7), legend.key.size = unit(7, "pt"))
+cluster.umap
+
+```
+
+Save plot.
+```{r}
+ggsave(plot = cluster.umap, filename = "/Volumes/Bud_SSD/20210505-seurat/fin-integr-projected-flox-integr-clust-5-18/projected-umap-by-mutant-fin-integr-projected-flox-integr-clust-5-18.png", device = "png", width = 6.5, height = 4.5, units = "in")
+```
+
+Find new clusters.
+```{r}
+fin.projected <- TransferData(anchorset = fin.anchors, refdata = flox.integr@active.ident, dims = 1:pc.number)
+head(fin.projected)
+```
+
+Factor predicted.id.
+```{r}
+fin.projected$predicted.id <- factor(fin.projected$predicted.id, levels = levels(flox.integr$wildtype.whole))
+levels(fin.projected$predicted.id)
+```
+
+Save projection scores.
+```{r}
+save(fin.projected, file = "/Volumes/Bud_SSD/20210505-seurat/fin-integr-projected-flox-integr-clust-5-18/projection-scores-fin-integr-projected-flox-integr-clust-5-18.Robj")
+```
+
+Add wildtype identties into fin.
+```{r}
+fin.integr$wildtype.whole <- fin.projected$predicted.id
+Idents(fin.integr) <- fin.projected$predicted.id
+```
+
+Grab projected umap.
+```{r}
+whole.umap <- data.frame(fin.integr@reductions$ref.umap@cell.embeddings, fin.integr$embryo.id, fin.integr@active.ident)
+colnames(whole.umap) <- c("umap.1", "umap.2", "embryo.id", "wildtype.whole")
+head(whole.umap)
+```
+
+Factor embryo.
+```{r}
+whole.umap$embryo.id <- factor(whole.umap$embryo.id, levels = c("ATU6-45", "ATU6-69", "AYR4-22", "AZK2-45", "BBH6-59", "AXL7-69"))
+```
+
+Save umap.
+```{r}
+save(whole.umap, file = "/Volumes/Bud_SSD/20210505-seurat/fin-integr-projected-flox-integr-clust-5-18/projected-umap-by-wildtype-fin-integr-projected-flox-integr-clust-5-18.Robj")
+```
+
+Generate labels.
+```{r}
+whole.label <- whole.umap %>% group_by(wildtype.whole) %>% summarize(umap.1 = median(umap.1), umap.2 = median(umap.2))
+```
+
+Plot.
+```{r}
+cluster.umap <- ggplot() +
+geom_point(data = sample(whole.umap), mapping = aes(x = umap.1, y = umap.2, color = wildtype.whole), size = 0.1) +
+geom_text(data = whole.label, mapping = aes(x = umap.1, y = umap.2, label = wildtype.whole), size = 3.5) +
+labs(title = "Whole, Nipbl FIN/+", x = "UMAP 1", y = "UMAP 2", color = "Cluster") +
+  guides(color = guide_legend(override.aes = list(size = 2.3))) +
+theme_classic(base_size = 7) +
+theme(axis.line = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), plot.title = element_text(hjust = 0.5, size = 7), legend.key.size = unit(7, "pt"))
+cluster.umap
+
+```
+
+Save plot.
+```{r}
+ggsave(plot = cluster.umap, filename = "/Volumes/Bud_SSD/20210505-seurat/fin-integr-projected-flox-integr-clust-5-18/projected-umap-by-wildtype-fin-integr-projected-flox-integr-clust-5-18.png", device = "png", width = 6.5, height = 4.5, units = "in")
+```
+
+See fin meta data.
+```{r}
+head(fin.integr@meta.data)
+```
+
+Factor experiment, embryo.id, genotype.
+```{r}
+fin.integr$embryo.id <- factor(fin.integr$embryo.id, levels = c("ATU6-45", "ATU6-69", "AYR4-22", "AZK2-45", "BBH6-59", "AXL7-69"))
+```
+
+Save fin object.
+```{r}
+save(fin.integr, file = "/Volumes/Bud_SSD/20210505-seurat/fin-integr-projected-flox-integr-clust-5-18/fin-integr-projected-flox-integr-clust-5-18.Robj")
+```
+
+Upload onto hpc. Run in terminal instead
+```{bash}
+#scp -r /Volumes/Bud_SSD/20210505-seurat/fin-integr-projected-flox-integr-clust-5-18 schea2@hpc3.rcic.uci.edu:/dfs6/pub/schea2/20210505-seurat
+```
+
