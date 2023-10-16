@@ -1,0 +1,111 @@
+---
+title: "Merge early bud, late bud, and early head fold stages together"
+output: html_notebook
+---
+
+Load libraries.
+```{r}
+library(Seurat)
+```
+
+Load early bud.
+```{r}
+load("/Volumes/Bud_SSD/20220303-early-bud/eb-integr-neighbors.Robj")
+load("/Volumes/Bud_SSD/20220303-early-bud/umap-by-germ-layer-eb-integr-clust-4-8.Robj")
+
+eb.integr[["SCT_EMBRYO"]] <- NULL
+names(eb.integr@assays)[2] <- "SCT"
+
+eb.integr$nCount_SCT_EB <- NULL
+eb.integr$nCount_SCT_EMBRYO <- NULL
+eb.integr$nFeature_SCT_EB <- NULL
+eb.integr$nFeature_SCT_EMBRYO <- NULL
+
+eb.integr$stage <- "eb"
+eb.integr$cluster.whole <- whole.umap$cluster.whole
+eb.integr$germ.whole <- whole.umap$germ.whole
+
+```
+
+Load flox late bud.
+```{r}
+load("/Volumes/Bud_SSD/20210505-seurat/flox-integr-neighbors.Robj")
+load("/Volumes/Bud_SSD/20210505-seurat/flox-integr-clust-5/umap-by-germ-layer-flox-integr-clust-5-18.Robj")
+
+flox.integr[["SCT_EMBRYO"]] <- NULL
+flox.integr[["SCT_ALL"]] <- NULL
+names(flox.integr@assays)[2] <- "SCT"
+
+flox.integr$nCount_SCT_ALL <- NULL
+flox.integr$nFeature_SCT_ALL <- NULL
+flox.integr$nCount_SCT_GENOTYPE <- NULL
+flox.integr$nFeature_SCT_GENOTYPE <- NULL
+flox.integr$nCount_SCT_EMBRYO <- NULL
+flox.integr$nFeature_SCT_EMBRYO <- NULL
+
+colnames(flox.integr@meta.data)[5] <- "embryo"
+
+flox.integr$stage <- "lb"
+flox.integr$cluster.whole <- whole.umap$wildtype.whole
+flox.integr$germ.whole <- whole.umap$germ.whole
+```
+
+Load fin late bud.
+```{r}
+load("/Volumes/Bud_SSD/20210505-seurat/fin-integr-neighbors.Robj")
+load("/Volumes/Bud_SSD/20210505-seurat/fin-integr-projected-flox-integr-clust-5-18/projected-umap-by-germ-layer-fin-integr-projected-flox-integr-clust-5-18.Robj")
+
+fin.integr[["SCT_EMBRYO"]] <- NULL
+fin.integr[["SCT_ALL"]] <- NULL
+names(fin.integr@assays)[2] <- "SCT"
+
+fin.integr$nCount_SCT_ALL <- NULL
+fin.integr$nFeature_SCT_ALL <- NULL
+fin.integr$nCount_SCT_GENOTYPE <- NULL
+fin.integr$nFeature_SCT_GENOTYPE <- NULL
+fin.integr$nCount_SCT_EMBRYO <- NULL
+fin.integr$nFeature_SCT_EMBRYO <- NULL
+
+colnames(fin.integr@meta.data)[5] <- "embryo"
+
+fin.integr$stage <- "lb"
+fin.integr$cluster.whole <- whole.umap$wildtype.whole
+fin.integr$germ.whole <- whole.umap$germ.whole
+```
+
+Load early head fold.
+```{r}
+load("/Volumes/Bud_SSD/20220303-early-head-fold/ehf-integr-neighbors.Robj")
+load("/Volumes/Bud_SSD/20220303-early-head-fold/umap-by-germ-layer-ehf-integr-clust-4-13.Robj")
+
+ehf.integr[["SCT_EMBRYO"]] <- NULL
+names(ehf.integr@assays)[2] <- "SCT"
+
+ehf.integr$nCount_SCT_EHF <- NULL
+ehf.integr$nCount_SCT_EMBRYO <- NULL
+ehf.integr$nFeature_SCT_EHF <- NULL
+ehf.integr$nFeature_SCT_EMBRYO <- NULL
+
+ehf.integr$stage <- "ehf"
+ehf.integr$cluster.whole <- whole.umap$cluster.whole
+ehf.integr$germ.whole <- whole.umap$germ.whole
+```
+
+Merge stages together.
+```{r}
+merged.seurat <- merge(x = eb.integr, y = c(flox.integr, fin.integr, ehf.integr), add.cell.ids = c("eb", "flox.lb", "fin.lb", "ehf"), merge.data = TRUE)
+
+save(merged.seurat, file = "merged-eb-lb-ehf.Robj")
+```
+
+```{r}
+load("/Volumes/Bud_SSD/20230122-urd/merged-eb-lb-ehf.Robj")
+
+merged.seurat$stage <- factor(merged.seurat$stage, levels = c("eb", "lb", "ehf"))
+merged.seurat$embryo <- factor(merged.seurat$embryo)
+merged.seurat$cluster.whole <- factor(merged.seurat$cluster.whole)
+merged.seurat$germ.whole <- factor(merged.seurat$germ.whole, levels = c("ECT", "MES", "END"))
+
+save(merged.seurat, file = "merged-eb-lb-ehf.Robj")
+```
+
