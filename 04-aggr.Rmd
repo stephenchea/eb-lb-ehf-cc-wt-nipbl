@@ -1,0 +1,86 @@
+---
+title: "Create Seurat object out of Cell Ranger aggregation"
+output: html_notebook
+---
+
+Make directory.
+```{bash}
+mkdir /Volumes/Bud_SSD/20220303-early-bud/20190211ab-eb-aggr-mapped
+```
+
+Download Cell Ranger aggregation.
+```{bash}
+scp -r schea2@hpc3.rcic.uci.edu:/share/crsp/lab/alcalof/share/dfs3-backup/lander-calof/incoming/aggregated/20190211ab-eb-aggr-mapped/outs/filtered_feature_bc_matrix/*.gz /Volumes/Bud_SSD/20220303-early-bud/20190211ab-eb-aggr-mapped
+```
+
+Load libraries.
+```{r}
+library(Seurat)
+```
+
+Load Cell Ranger aggregation.
+```{r}
+eb.aggr <- Read10X(data.dir = "/Volumes/Bud_SSD/20220303-early-bud/20190211ab-eb-aggr-mapped")
+```
+
+How many genes and cells?
+```{r}
+dim(eb.aggr)
+```
+
+Generate metadata. EB1 has 4484 cells. EB2 has 1308 cells. 
+```{r}
+experiment <- vector()
+experiment[1:5792] <- "20190211"
+experiment <- factor(experiment)
+
+embryo <- vector()
+embryo[1:4484] <- "EB1"
+embryo[4485:5792] <- "EB2"
+embryo <- factor(embryo, levels = c("EB1", "EB2"))
+
+genotype <- vector()
+genotype[1:5792] <- "Flox"
+genotype <- factor(genotype)
+
+metadata <- data.frame(experiment, embryo, genotype)
+rownames(metadata) <- colnames(eb.aggr)
+
+head(metadata)
+```
+
+Create Seurat object.
+```{r}
+eb.aggr <- CreateSeuratObject(counts = eb.aggr, project = "eb.aggr", min.cells = 0, min.features = 0, meta.data = metadata)
+```
+
+Split object by embryo.
+```{r}
+embryo.aggr <- SplitObject(object = eb.aggr, split.by = "embryo")
+```
+
+Generate pseudobulk per embryo.
+```{r}
+umi.embryo <- lapply(X = embryo.aggr, FUN = function(x) rowSums(x@assays$RNA@counts))
+umi.embryo <- data.frame(umi.embryo[[1]], umi.embryo[[2]])
+head(umi.embryo)
+```
+
+How many genes are detected in both embryos?
+```{r}
+d.genes = apply(umi.embryo, 1, function(row) all(row !=0 ))
+sum(d.genes)
+```
+
+
+Filter out genes that are not detected across all embryos.
+```{r}
+eb.aggr <- subset(eb.aggr, features = rownames(eb.aggr)[d.genes])
+dim(eb.aggr)
+```
+
+Save Seurat object.
+```{r}
+save(eb.aggr, file = "eb-aggr-seurat.Robj")
+```
+
