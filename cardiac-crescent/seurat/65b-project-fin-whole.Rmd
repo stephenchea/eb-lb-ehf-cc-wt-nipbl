@@ -1,0 +1,170 @@
+---
+title: "How similar or different are FIN clusters from Flox clusters?"
+output: html_notebook
+---
+
+Download UMAP.
+```{bash}
+#mkdir /Volumes/all_ssd/20220414-seurat/fin-integr-projected-flox-integr-res-0.0120
+
+scp -r schea2@hpc3.rcic.uci.edu:'/share/crsp/lab/alcalof/schea2/20220414-seurat/fin-integr-projected-flox-integr-res-0.0120/projected-umap-by-stage-embryo-cluster-stage-split-fin-integr-projected-flox-integr-res-0.0120.Robj' /Volumes/all_ssd/20220414-seurat/fin-integr-projected-flox-integr-res-0.0120
+```
+
+Load libraries.
+```{r}
+library(Seurat)
+library(tidyverse)
+library(RColorBrewer)
+library(scales)
+```
+
+Load UMAP.
+```{r}
+load("/Volumes/all_ssd/20220414-seurat/fin-integr-projected-flox-integr-res-0.0120/projected-umap-by-stage-embryo-cluster-stage-split-fin-integr-projected-flox-integr-res-0.0120.Robj")
+head(whole.umap)
+```
+
+```{r}
+stage.umap <- ggplot() +
+geom_point(data = sample(whole.umap), mapping = aes(x = umap.1, y = umap.2, color = stage), shape = 20, stroke = 0, size = 0.5) +
+    labs(title = "Nipbl FIN/+", x = "UMAP 1", y = "UMAP 2", color = "Stage") +
+    guides(color = guide_legend(override.aes = list(size = 2.3))) +
+    theme_classic(base_size = 7) +
+    theme(axis.line = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), plot.title = element_text(hjust = 0.5), legend.key.size = unit(7, "pt"))
+ggsave(plot = stage.umap, filename = "/Volumes/all_ssd/20220414-seurat/fin-integr-projected-flox-integr-res-0.0120/projected-umap-by-stage-fin-integr-projected-flox-integr-res-0.0120.png", device = "png", width = 3.5, height = 2.25)
+
+stage.umap <- ggplot() +
+geom_point(data = sample(whole.umap), mapping = aes(x = umap.1, y = umap.2, color = stage), shape = 20, stroke = 0, size = 0.5) +
+    facet_wrap(~stage, ncol = 2) +
+    labs(title = "Nipbl FIN/+", x = "UMAP 1", y = "UMAP 2", color = "Stage") +
+    guides(color = guide_legend(override.aes = list(size = 2.3))) +
+    theme_classic(base_size = 7) +
+    theme(axis.line = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), plot.title = element_text(hjust = 0.5), legend.key.size = unit(7, "pt"), strip.background = element_blank())
+ggsave(plot = stage.umap, filename = "/Volumes/all_ssd/20220414-seurat/fin-integr-projected-flox-integr-res-0.0120/projected-umap-facet-stage-fin-integr-projected-flox-integr-res-0.0120.png", device = "png", width = 6.5, height = 2.25)
+
+embryo.umap <- ggplot() +
+geom_point(data = sample(whole.umap %>% filter(stage == "LB")), mapping = aes(x = umap.1, y = umap.2, color = embryo), shape = 20, stroke = 0, size = 0.5) +
+    scale_color_manual(values = hue_pal()(28)[c(19, 7, 21, 9, 23, 11)]) +
+    labs(title = "Late Bud, Nipbl FIN/+", x = "UMAP 1", y = "UMAP 2", color = "Embryo") +
+    guides(color = guide_legend(override.aes = list(size = 2.3))) +
+    theme_classic(base_size = 7) +
+    theme(axis.line = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), plot.title = element_text(hjust = 0.5), legend.key.size = unit(7, "pt"))
+
+ggsave(plot = embryo.umap, filename = "/Volumes/all_ssd/20220414-seurat/fin-integr-projected-flox-integr-res-0.0120/projected-umap-by-embryo-late-bud-fin-integr-projected-flox-integr-res-0.0120.png", device = "png", width = 3.5, height = 2.25)
+embryo.umap <- ggplot() +
+geom_point(data = sample(whole.umap %>% filter(stage == "LB")), mapping = aes(x = umap.1, y = umap.2, color = embryo), shape = 20, stroke = 0, size = 0.5) +
+    facet_wrap(~embryo, ncol = 4) +
+    scale_color_manual(values = hue_pal()(28)[c(19, 7, 21, 9, 23, 11)]) +
+    labs(title = "Late Bud, Nipbl FIN/+", x = "UMAP 1", y = "UMAP 2", color = "Embryo") +
+    guides(color = guide_legend(override.aes = list(size = 2.3))) +
+    theme_classic(base_size = 7) +
+    theme(axis.line = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), plot.title = element_text(hjust = 0.5), legend.key.size = unit(7, "pt"), strip.background = element_blank())
+ggsave(plot = embryo.umap, filename = "/Volumes/all_ssd/20220414-seurat/fin-integr-projected-flox-integr-res-0.0120/projected-umap-facet-embryo-late-bud-fin-integr-projected-flox-integr-res-0.0120.png", device = "png", width = 6.5, height = 3.6)
+
+embryo.umap <- ggplot() +
+geom_point(data = sample(whole.umap %>% filter(stage == "CC")), mapping = aes(x = umap.1, y = umap.2, color = embryo), shape = 20, stroke = 0, size = 0.5) +
+    scale_color_manual(values = hue_pal()(28)[c(20, 8, 22, 10, 24, 12, 26, 14)]) +
+    labs(title = "Cardiac Crescent, Nipbl FIN/+", x = "UMAP 1", y = "UMAP 2", color = "Embryo") +
+    guides(color = guide_legend(override.aes = list(size = 2.3))) +
+    theme_classic(base_size = 7) +
+    theme(axis.line = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), plot.title = element_text(hjust = 0.5), legend.key.size = unit(7, "pt"))
+ggsave(plot = embryo.umap, filename = "/Volumes/all_ssd/20220414-seurat/fin-integr-projected-flox-integr-res-0.0120/projected-umap-by-embryo-cardiac-crescent-fin-integr-projected-flox-integr-res-0.0120.png", device = "png", width = 3.5, height = 2.25)
+
+embryo.umap <- ggplot() +
+geom_point(data = sample(whole.umap %>% filter(stage == "CC")), mapping = aes(x = umap.1, y = umap.2, color = embryo), shape = 20, stroke = 0, size = 0.5) +
+    facet_wrap(~embryo, ncol = 4) +
+    scale_color_manual(values = hue_pal()(28)[c(20, 8, 22, 10, 24, 12, 26, 14)]) +
+    labs(title = "Cardiac Crescent, Nipbl FIN/+", x = "UMAP 1", y = "UMAP 2", color = "Embryo") +
+    guides(color = guide_legend(override.aes = list(size = 2.3))) +
+    theme_classic(base_size = 7) +
+    theme(axis.line = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), plot.title = element_text(hjust = 0.5), legend.key.size = unit(7, "pt"), strip.background = element_blank())
+ggsave(plot = embryo.umap, filename = "/Volumes/all_ssd/20220414-seurat/fin-integr-projected-flox-integr-res-0.0120/projected-umap-facet-embryo-cardiac-crescent-fin-integr-projected-flox-integr-res-0.0120.png", device = "png", width = 6.5, height = 3.6)
+```
+
+Create labels.
+```{r}
+whole.label <- whole.umap %>% group_by(cluster.whole.fin) %>% summarize(umap.1 = median(umap.1), umap.2 = median(umap.2))
+```
+
+Plot UMAP.
+```{r}
+cluster.umap <- ggplot() + 
+  geom_point(data = sample(whole.umap), mapping = aes(x = umap.1, y = umap.2, color = cluster.whole.fin), shape = 20, stroke = 0, size = 0.5) +
+  geom_text(data = whole.label, mapping = aes(x = umap.1, y = umap.2, label = cluster.whole.fin), size = 2.3) +
+  labs(title = "Nipbl FIN/+", x = "UMAP 1", y = "UMAP 2", color = "Nipbl FIN/+\nCluster") +
+  guides(color = guide_legend(override.aes = list(size = 2.3))) +
+  theme_classic(base_size = 7) +
+  theme(axis.line = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), plot.title = element_text(hjust = 0.5, size = 7), legend.key.size = unit(7, "pt"))
+
+cluster.umap
+```
+
+Save plot.
+```{r}
+ggsave(plot = cluster.umap, filename = "/Volumes/all_ssd/20220414-seurat/fin-integr-projected-flox-integr-res-0.0120/projected-umap-by-fin-fin-integr-projected-flox-integr-res-0.0120.png", device = "png", width = 3.5, height = 2.25, units = "in")
+```
+
+Create labels.
+```{r}
+whole.label <- whole.umap %>% group_by(cluster.whole.flox) %>% summarize(umap.1 = median(umap.1), umap.2 = median(umap.2))
+```
+
+Plot UMAP.
+```{r}
+cluster.umap <- ggplot() + 
+  geom_point(data = sample(whole.umap), mapping = aes(x = umap.1, y = umap.2, color = cluster.whole.flox), shape = 20, stroke = 0, size = 0.5) +
+  geom_text(data = whole.label, mapping = aes(x = umap.1, y = umap.2, label = cluster.whole.flox), size = 2.3) +
+  labs(title = "Nipbl FIN/+", x = "UMAP 1", y = "UMAP 2", color = "Nipbl Flox/+\nCluster") +
+  guides(color = guide_legend(override.aes = list(size = 2.3))) +
+  theme_classic(base_size = 7) +
+  theme(axis.line = element_blank(), axis.ticks = element_blank(), axis.text = element_blank(), plot.title = element_text(hjust = 0.5, size = 7), legend.key.size = unit(7, "pt"))
+
+cluster.umap
+```
+
+Save plot.
+```{r}
+ggsave(plot = cluster.umap, filename = "/Volumes/all_ssd/20220414-seurat/fin-integr-projected-flox-integr-res-0.0120/projected-umap-by-flox-fin-integr-projected-flox-integr-res-0.0120.png", device = "png", width = 3.5, height = 2.25, units = "in")
+```
+
+Upload plots onto HPC.
+```{bash}
+scp -r /Volumes/all_ssd/20220414-seurat/fin-integr-projected-flox-integr-res-0.0120/*.png schea2@hpc3.rcic.uci.edu:'/share/crsp/lab/alcalof/schea2/20220414-seurat/fin-integr-projected-flox-integr-res-0.0120'
+```
+
+Download DEG's and Seurat object.
+```{bash}
+scp -r schea2@hpc3.rcic.uci.edu:'/share/crsp/lab/alcalof/schea2/20220414-seurat/fin-integr-projected-flox-integr-res-0.0120/projected-diff-genes-fin-integr-projected-flox-integr-res-0.0120.*' /Volumes/all_ssd/20220414-seurat/fin-integr-projected-flox-integr-res-0.0120
+
+#scp -r schea2@hpc3.rcic.uci.edu:'/share/crsp/lab/alcalof/schea2/20220414-seurat/fin-integr-projected-flox-integr-res-0.0120/fin-integr-projected-flox-integr-res-0.0120.Robj' /Volumes/all_ssd/20220414-seurat/fin-integr-projected-flox-integr-res-0.0120
+```
+
+Load FIN cells.
+```{r}
+load(file = "/Volumes/all_ssd/20220414-seurat/fin-integr-projected-flox-integr-res-0.0120/fin-integr-projected-flox-integr-res-0.0120.Robj")
+```
+
+Load DEGs.
+```{r}
+load(file = "/Volumes/all_ssd/20220414-seurat/fin-integr-projected-flox-integr-res-0.0120/diff-genes-fin-integr-projected-flox-integr-res-0.0120.Robj")
+head(diff.genes)
+```
+
+```{r}
+top.genes <- diff.genes %>% group_by(cluster) %>% slice_head(n = 79/length(levels(fin.integr$cluster.whole.flox)))
+```
+
+```{r}
+cell.names <- rownames(fin.integr@meta.data)
+
+heatmap <- DoHeatmap(fin.integr, cells = sample(cell.names, round(length(cell.names)*0.5), replace = FALSE), assay = "SCT_GENOTYPE", slot = "scale.data", features = as.vector(top.genes$gene), group.by = "ident", group.bar = TRUE, label = TRUE, size = 2.3, angle = 0, hjust = 0.5, draw.lines = TRUE) +
+  scale_fill_gradientn(colors = rev(brewer.pal(n=5, name = "RdBu")), na.value = "white") +
+  scale_x_discrete(position = "top") +
+  labs(title = "Nipbl FIN/+", x = "Nipbl Flox/+ Cluster", y = "Top Genes", fill = "Standardized\nLog1p UMI") +
+  guides(color = FALSE) +
+  theme(axis.title = element_text(size = 7), axis.text = element_text(size = 7), plot.title = element_text(hjust = 0.5, size = 7), legend.title = element_text(size = 7), legend.text = element_text(size = 7), legend.key.size = unit(7, "pt"))
+
+ggsave(plot = heatmap, filename = "/Volumes/all_ssd/20220414-seurat/fin-integr-projected-flox-integr-res-0.0120/heatmap-diff-genes-fin-integr-projected-flox-integr-res-0.0120.png", device = "png", units = "in", width = 6.5, height = 9)
+```
+
+
